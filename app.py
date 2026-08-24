@@ -466,7 +466,8 @@ class _TursoConn:
         self._conn = conn
 
     def execute(self, sql, params=None):
-        if params:
+        if params is not None:
+            params = tuple(params)
             cur = self._conn.execute(sql, params)
         else:
             cur = self._conn.execute(sql)
