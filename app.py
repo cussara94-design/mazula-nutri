@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import io
 import requests
 import bleach
 from datetime import datetime
@@ -93,25 +94,29 @@ WORK_TYPES = {
         "label": "Monografia",
         "sections": ["Introducao", "Revisao de Literatura", "Fundamentacao Teorica", "Metodologia", "Resultados e Discussao", "Conclusao"],
     },
-    "ensaio": {
-        "label": "Ensaio",
-        "sections": ["Introducao", "Desenvolvimento", "Conclusao"],
-    },
-    "projecto": {
-        "label": "Projecto de Pesquisa",
-        "sections": ["Introducao", "Revisao de Literatura", "Metodologia", "Cronograma", "Referencias"],
-    },
-    "revisao": {
-        "label": "Revisao de Literatura",
-        "sections": ["Introducao", "Metodo de Busca", "Resultados", "Discussao", "Conclusao"],
-    },
     "artigo": {
         "label": "Artigo Cientifico",
         "sections": ["Introducao", "Metodos", "Resultados", "Discussao", "Conclusao"],
     },
+    "projeto": {
+        "label": "Projeto Practico",
+        "sections": ["Introducao", "Revisao de Literatura", "Metodologia", "Cronograma", "Referencias"],
+    },
+    "dissertacao": {
+        "label": "Dissertacao",
+        "sections": ["Introducao", "Revisao de Literatura", "Fundamentacao Teorica", "Metodologia", "Resultados e Discussao", "Conclusao", "Referencias"],
+    },
     "tese": {
         "label": "Tese",
         "sections": ["Introducao", "Revisao de Literatura", "Fundamentacao Teorica", "Metodologia", "Analise e Discussao", "Conclusao", "Referencias"],
+    },
+    "ensaio": {
+        "label": "Ensaio",
+        "sections": ["Introducao", "Desenvolvimento", "Conclusao"],
+    },
+    "revisao": {
+        "label": "Revisao de Literatura",
+        "sections": ["Introducao", "Metodo de Busca", "Resultados", "Discussao", "Conclusao"],
     },
 }
 
@@ -379,53 +384,6 @@ def register_page():
     return redirect(url_for("index"))
 
 
-@app.route("/api/auth/register", methods=["POST"])
-def auth_register():
-    data = json_body()
-    name = (data.get("name") or "").strip()
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-    if not name or not email or not password:
-        return jsonify({"error": "Nome, email e senha obrigatorios."}), 400
-    if len(password) < 6:
-        return jsonify({"error": "A senha deve ter pelo menos 6 caracteres."}), 400
-    db = get_db()
-    existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
-    if existing is not None:
-        return jsonify({"error": "Ja existe uma conta com este email."}), 409
-    cur = db.execute(
-        "INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)",
-        (name, email, generate_password_hash(password), now_str()),
-    )
-    db.commit()
-    session.clear()
-    session["user_id"] = cur.lastrowid
-    user = db.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
-    return jsonify({"message": "Conta criada.", "user": public_user(row_to_dict(user))}), 201
-
-
-@app.route("/api/auth/login", methods=["POST"])
-def auth_login():
-    data = json_body()
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-    if not email or not password:
-        return jsonify({"error": "Email e senha obrigatorios."}), 400
-    db = get_db()
-    user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-    if user is None or not check_password_hash(user["password"], password):
-        return jsonify({"error": "Email ou senha invalidos."}), 401
-    session.clear()
-    session["user_id"] = user["id"]
-    return jsonify({"message": "Sessao iniciada.", "user": public_user(row_to_dict(user))})
-
-
-@app.route("/api/auth/logout", methods=["POST"])
-def auth_logout():
-    session.clear()
-    return jsonify({"message": "Sessao encerrada."})
-
-
 @app.route("/api/auth/me")
 def auth_me():
     if session.get("user_id") is None:
@@ -474,7 +432,17 @@ def works_create():
     title = (data.get("title") or "").strip()
     if not title:
         return jsonify({"error": "Titulo e obrigatorio."}), 400
-    work_type = data.get("work_type") or "monografia"
+    work_type_raw = (data.get("work_type") or "monografia").strip()
+    TYPE_MAP = {
+        "monografia": "monografia", "monograph": "monografia",
+        "artigo": "artigo", "artigo científico": "artigo", "artigo cientifico": "artigo", "artigo cientifico": "artigo",
+        "projeto": "projeto", "projeto prático": "projeto", "projeto practico": "projeto", "projeto pratico": "projeto",
+        "dissertação": "dissertacao", "dissertacao": "dissertacao",
+        "tese": "tese",
+        "ensaio": "ensaio",
+        "revisão de literatura": "revisao", "revisao de literatura": "revisao",
+    }
+    work_type = TYPE_MAP.get(work_type_raw.lower(), "monografia")
     if work_type not in WORK_TYPES:
         work_type = "monografia"
     db = get_db()
@@ -716,210 +684,6 @@ def refs_format_apa(work_id):
     return jsonify({"formatted": formatted})
 
 
-@app.route("/api/import-doi", methods=["POST"])
-@login_required
-def import_doi():
-    data = json_body()
-    identifier = (data.get("identifier") or "").strip()
-    work_id = data.get("work_id")
-    if not identifier:
-        return jsonify({"error": "Forneca um DOI ou ISBN."}), 400
-    uid = session["user_id"]
-    db = get_db()
-    if work_id:
-        work = fetch_owned("works", work_id, uid)
-        if work is None:
-            return jsonify({"error": "Trabalho nao encontrado."}), 404
-    ref_data = None
-    if identifier.startswith("10."):
-        try:
-            clean_doi = identifier.lstrip("doi:").lstrip("DOI:").strip()
-            if not clean_doi.startswith("http"):
-                clean_doi = "https://doi.org/" + clean_doi
-            r = requests.get("https://api.crossref.org/works/" + identifier.lstrip("doi:").lstrip("DOI:").strip(), timeout=15)
-            if r.status_code == 200:
-                d = r.json().get("message", {})
-                authors_list = d.get("author", [])
-                if authors_list:
-                    parts = []
-                    for a in authors_list:
-                        family = a.get("family", "")
-                        given = a.get("given", "")
-                        if family and given:
-                            parts.append("{}, {}".format(family, given[0] + "."))
-                        elif family:
-                            parts.append(family)
-                    authors_str = ", ".join(parts)
-                else:
-                    authors_str = "Autor desconhecido"
-                year = ""
-                dp = d.get("published-print") or d.get("published-online") or d.get("created")
-                if dp and dp.get("date-parts"):
-                    year = str(dp["date-parts"][0][0])
-                source = ""
-                container = d.get("container-title")
-                if container:
-                    source = container[0] if isinstance(container, list) else container
-                ref_data = {
-                    "authors": authors_str,
-                    "year": year,
-                    "title": (d.get("title") or [""])[0] if d.get("title") else "",
-                    "source": source,
-                    "doi": identifier.lstrip("doi:").lstrip("DOI:").strip(),
-                    "url": clean_doi,
-                    "ref_type": "artigo",
-                    "publisher": d.get("publisher", ""),
-                }
-        except Exception:
-            pass
-    if not ref_data:
-        try:
-            r = requests.get("https://openlibrary.org/isbn/{}.json".format(identifier), timeout=15)
-            if r.status_code == 200:
-                d = r.json()
-                title = d.get("title", "")
-                authors_str = "Autor desconhecido"
-                if d.get("authors"):
-                    a_ids = [a.get("key") for a in d["authors"] if a.get("key")]
-                    a_names = []
-                    for aid in a_ids[:5]:
-                        try:
-                            ar = requests.get("https://openlibrary.org{}.json".format(aid), timeout=10)
-                            if ar.status_code == 200:
-                                ad = ar.json()
-                                name = ad.get("name", "")
-                                if name:
-                                    a_names.append(name)
-                        except Exception:
-                            pass
-                    if a_names:
-                        authors_str = ", ".join(a_names)
-                year = ""
-                if d.get("publish_date"):
-                    m = re.search(r"(\d{4})", d["publish_date"])
-                    if m:
-                        year = m.group(1)
-                publishers = d.get("publishers") or []
-                source = publishers[0] if publishers else ""
-                ref_data = {
-                    "authors": authors_str,
-                    "year": year,
-                    "title": title,
-                    "source": source,
-                    "doi": "",
-                    "url": "https://openlibrary.org/isbn/{}".format(identifier),
-                    "ref_type": "livro",
-                    "publisher": source,
-                }
-        except Exception:
-            pass
-    if not ref_data:
-        return jsonify({"error": "Nao foi possivel encontrar dados para '{}'.".format(identifier)}), 404
-    if work_id:
-        now = now_str()
-        cur = db.execute(
-            "INSERT INTO references_ (work_id, authors, year, title, source, doi, url, ref_type, pages, publisher, edition, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (work_id, ref_data["authors"], ref_data["year"], ref_data["title"], ref_data["source"], ref_data.get("doi", ""), ref_data.get("url", ""), ref_data.get("ref_type", "livro"), "", ref_data.get("publisher", ""), "", now),
-        )
-        db.commit()
-        row = db.execute("SELECT * FROM references_ WHERE id = ?", (cur.lastrowid,)).fetchone()
-        return jsonify({"reference": row_to_dict(row), "imported": True}), 201
-    return jsonify({"reference": ref_data, "imported": False})
-
-
-@app.route("/api/generate", methods=["POST"])
-@login_required
-def api_generate():
-    if not GROQ_API_KEY:
-        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
-    data = json_body()
-    prompt = (data.get("prompt") or "").strip()
-    work_id = data.get("work_id")
-    section_title = (data.get("section_title") or "").strip()
-    mode = data.get("mode") or "generate"
-    selected_text = (data.get("selected_text") or "").strip()
-
-    db = get_db()
-    uid = session["user_id"]
-    work_ctx = ""
-    if work_id:
-        _, work_ctx = get_work_context(db, work_id, uid) or ("", "")
-
-    sys_base = """Voce e um assistente academico especializado em trabalhos cientificos em lingua portuguesa de Mocambique.
-REGRAS: linguagem formal e academica, terceira pessoa, vocabulario tecnico, sem abreviacoes informais, texto original."""
-
-    if mode == "generate":
-        sys_msg = sys_base + "\n\nGere conteudo academico para a secção '{}'.".format(section_title or "Trabalho")
-        if work_ctx:
-            sys_msg += "\n\nContexto:\n" + work_ctx[:1500]
-        sys_msg += "\n\nOrientacao: {}".format(prompt or "Gere texto academico completo (minimo 300 palavras).")
-    elif mode == "summarize":
-        sys_msg = sys_base + "\n\nResuma o seguinte texto academico de forma concisa e objetiva, mantendo os pontos principais:"
-        sys_msg += "\n\nTEXTO:\n{}".format(selected_text or prompt)
-    elif mode == "expand":
-        sys_msg = sys_base + "\n\nExpanda o seguinte texto academico, adicionando mais detalhes, analise e profundidade. Mantenha o contexto original:"
-        if work_ctx:
-            sys_msg += "\n\nContexto do trabalho:\n" + work_ctx[:800]
-        sys_msg += "\n\nTEXTO A EXPANDIR:\n{}".format(selected_text or prompt)
-    elif mode == "rewrite":
-        sys_msg = sys_base + "\n\nReescreva o seguinte texto academico de forma melhorada, mais fluente e profissional. Mantenha o significado original:"
-        sys_msg += "\n\nTEXTO ORIGINAL:\n{}".format(selected_text or prompt)
-    elif mode == "translate":
-        target = data.get("target") or "ingles"
-        sys_msg = "Traduza o texto academico seguinte para {}. Mantenha o formato e o estilo academico.".format(target)
-        sys_msg += "\n\nTEXTO:\n{}".format(selected_text or prompt)
-    elif mode == "correct":
-        sys_msg = sys_base + "\n\nCorrija erros de ortografia, gramatica e estilo no texto academico seguinte. Apenas corrija, nao altere o significado:"
-        sys_msg += "\n\nTEXTO:\n{}".format(selected_text or prompt)
-    elif mode == "outline":
-        sys_msg = sys_base + "\n\nGere um esqueleto/outline detalhado para um trabalho academico."
-        if work_ctx:
-            sys_msg += "\n\nContexto:\n" + work_ctx[:800]
-        sys_msg += "\n\n{}".format(prompt or "Gere o outline completo.")
-    elif mode == "abstract":
-        sys_msg = sys_base + "\n\nGere um resumo/abstract academico baseado no seguinte conteudo do trabalho:"
-        sys_msg += "\n\n{}".format(work_ctx[:2000] if work_ctx else prompt)
-    elif mode == "keywords":
-        sys_msg = sys_base + "\n\nSugira 5-8 palavras-chave academicas adequadas para o seguinte trabalho. Responda APENAS com as palavras separadas por virgula:"
-        sys_msg += "\n\n{}".format(work_ctx[:1500] if work_ctx else prompt)
-    elif mode == "chat":
-        sys_msg = sys_base + "\n\nO usuario esta a trabalhar num trabalho academico. Responda as perguntas e ajude com o conteudo."
-        if work_ctx:
-            sys_msg += "\n\nContexto do trabalho:\n" + work_ctx[:2000]
-        history = db.execute("SELECT role, content FROM chat_history WHERE work_id = ? ORDER BY id DESC LIMIT 10", (work_id,)).fetchall() if work_id else []
-        for h in reversed(history):
-            hd = row_to_dict(h)
-            sys_msg += "\n{}: {}".format(hd["role"].capitalize(), hd["content"][:200])
-    else:
-        sys_msg = sys_base
-        if work_ctx:
-            sys_msg += "\n\nContexto:\n" + work_ctx[:1000]
-        sys_msg += "\n\n{}".format(prompt)
-
-    if mode == "chat" and work_id:
-        db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'user', ?, ?)", (work_id, prompt, now_str()))
-        db.commit()
-
-    user_msg = prompt if mode not in ("summarize", "expand", "rewrite", "translate", "correct") else (selected_text or prompt)
-    if mode == "generate" and not selected_text:
-        user_msg = prompt or "Gere o conteudo."
-
-    messages = [
-        {"role": "system", "content": sys_msg},
-        {"role": "user", "content": user_msg or "Por favor, ajude."},
-    ]
-
-    text, error = groq_chat(messages)
-    if error:
-        return jsonify({"error": error}), 502
-
-    if mode == "chat" and work_id:
-        db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'assistant', ?, ?)", (work_id, text, now_str()))
-        db.commit()
-
-    return jsonify({"text": text, "mode": mode})
-
-
 @app.route("/api/works/<int:work_id>/chat", methods=["GET"])
 @login_required
 def chat_history(work_id):
@@ -1117,17 +881,21 @@ def api_chat():
         _, work_ctx = get_work_context(db, work_id, uid) or ("", "")
     sys_msg = """Voce e um assistente academico especializado em trabalhos cientificos em Mocambique.
 REGRAS: linguagem formal e academica, terceira pessoa, vocabulario tecnico, sem abreviacoes informais, texto original, cite fontes reais APA 7a.
-Se o usuario pedir para gerar conteudo, gere paragrafos academicos completos com citações APA."""
+Se o usuario pedir para gerar conteudo, gere paragrafos academicos completos com citações APA.
+Seja directo, util e preciso. Evite respostas genericas."""
     if work_ctx:
         sys_msg += "\n\nContexto do trabalho:\n" + work_ctx[:2000]
     if work_id:
         db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'user', ?, ?)", (work_id, msg, now_str()))
         db.commit()
-        history = db.execute("SELECT role, content FROM chat_history WHERE work_id = ? ORDER BY id DESC LIMIT 10", (work_id,)).fetchall()
+        history = db.execute("SELECT role, content FROM chat_history WHERE work_id = ? ORDER BY id DESC LIMIT 20", (work_id,)).fetchall()
+        messages = [{"role": "system", "content": sys_msg}]
         for h in reversed(history):
             hd = row_to_dict(h)
-            sys_msg += "\n{}: {}".format(hd["role"].capitalize(), hd["content"][:200])
-    messages = [{"role": "system", "content": sys_msg}, {"role": "user", "content": msg}]
+            role = hd["role"] if hd["role"] in ("user", "assistant") else "user"
+            messages.append({"role": role, "content": hd["content"][:1000]})
+    else:
+        messages = [{"role": "system", "content": sys_msg}, {"role": "user", "content": msg}]
     text, error = groq_chat(messages)
     if error:
         return jsonify({"error": error}), 502
@@ -1227,6 +995,11 @@ def api_register():
 @app.route("/api/export/<int:work_id>")
 @login_required
 def export_work(work_id):
+    from docx import Document
+    from docx.shared import Pt, Cm, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.section import WD_ORIENT
+
     uid = session["user_id"]
     db = get_db()
     work, ctx = get_work_context(db, work_id, uid)
@@ -1244,80 +1017,134 @@ def export_work(work_id):
         s["word_count"] = len(c.split()) if c.strip() else 0
         total_words += s["word_count"]
 
-    html = """<!DOCTYPE html>
-<html lang="pt">
-<head>
-<meta charset="UTF-8">
-<title>{title}</title>
-<style>
-body {{ font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 2; margin: 2.5cm; color: #000; }}
-h1 {{ font-size: 16pt; text-align: center; margin-bottom: 30pt; font-weight: bold; }}
-h2 {{ font-size: 14pt; margin-top: 24pt; margin-bottom: 12pt; font-weight: bold; }}
-p {{ text-align: justify; text-indent: 1.25cm; margin: 0 0 6pt; }}
-.meta {{ text-align: center; margin-bottom: 30pt; font-size: 12pt; }}
-.meta p {{ text-indent: 0; text-align: center; }}
-.ref {{ text-indent: -1.25cm; padding-left: 1.25cm; margin-bottom: 6pt; }}
-@page {{ size: A4; margin: 2.5cm; }}
-@media print {{ body {{ margin: 0; }} }}
-</style>
-</head>
-<body>
-<h1>{title}</h1>
-<div class="meta">
-{meta_html}
-</div>
-{sections_html}
-<h2>Referencias Bibliograficas</h2>
-{refs_html}
-<p style="text-align:center;color:#999;font-size:10pt;margin-top:40pt;">Gerado por Cussara Academic - {date}</p>
-</body>
-</html>"""
+    doc = Document()
 
-    meta_items = []
+    section = doc.sections[0]
+    section.top_margin = Cm(2.5)
+    section.bottom_margin = Cm(2.5)
+    section.left_margin = Cm(3)
+    section.right_margin = Cm(2)
+
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Times New Roman'
+    font.size = Pt(12)
+    style.paragraph_format.line_spacing = 2.0
+    style.paragraph_format.space_after = Pt(0)
+
+    title = work.get("title", "Trabalho Academico")
+    p_title = doc.add_paragraph()
+    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p_title.add_run(title.upper())
+    run.bold = True
+    run.font.size = Pt(16)
+    run.font.name = 'Times New Roman'
+
+    doc.add_paragraph()
+
     if work.get("theme"):
-        meta_items.append("<p><strong>Tema:</strong> {}</p>".format(work["theme"]))
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = p.add_run("Tema: ")
+        r.bold = True
+        r.font.name = 'Times New Roman'
+        p.add_run(work["theme"]).font.name = 'Times New Roman'
+
     if work.get("area"):
-        meta_items.append("<p><strong>Area:</strong> {}</p>".format(work["area"]))
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = p.add_run("Area: ")
+        r.bold = True
+        r.font.name = 'Times New Roman'
+        p.add_run(work["area"]).font.name = 'Times New Roman'
+
     if work.get("keywords"):
-        meta_items.append("<p><strong>Palavras-chave:</strong> {}</p>".format(work["keywords"]))
-    meta_items.append("<p><strong>Total de palavras:</strong> {}</p>".format(total_words))
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = p.add_run("Palavras-chave: ")
+        r.bold = True
+        r.font.name = 'Times New Roman'
+        p.add_run(work["keywords"]).font.name = 'Times New Roman'
 
-    sections_html = ""
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run("Total de palavras: ")
+    r.bold = True
+    r.font.name = 'Times New Roman'
+    p.add_run(str(total_words)).font.name = 'Times New Roman'
+
+    doc.add_page_break()
+
     for s in sections:
-        content = s.get("content") or "(Secao em elaboracao)"
-        paragraphs = content.split("\n")
-        p_html = ""
-        for p in paragraphs:
-            p = p.strip()
-            if p:
-                p_html += "<p>{}</p>\n".format(p)
-        sections_html += "<h2>{}</h2>\n{}\n".format(s["title"], p_html)
+        h = doc.add_heading(s["title"], level=1)
+        for run in h.runs:
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(14)
+            run.font.color.rgb = RGBColor(0, 0, 0)
 
-    refs_html = ""
-    for r in refs:
-        authors = (r.get("authors") or "").strip().rstrip(".")
-        year = r.get("year") or "s.d."
-        title = (r.get("title") or "").strip().rstrip(".")
-        source = (r.get("source") or "").strip()
-        doi = (r.get("doi") or "").strip()
-        publisher = (r.get("publisher") or "").strip()
-        apa = "{} ({}). {}. ".format(authors, year, title)
-        if source:
-            apa += "{}. ".format(source)
-        if publisher:
-            apa += "{}. ".format(publisher)
-        if doi:
-            apa += "https://doi.org/{}".format(doi)
-        refs_html += '<p class="ref">{}</p>\n'.format(apa.strip())
+        content = s.get("content") or ""
+        clean = re.sub(r'<[^>]+>', ' ', content)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        paragraphs = [p.strip() for p in clean.split('\n') if p.strip()]
 
-    final_html = html.format(
-        title=work.get("title", "Trabalho Academico"),
-        meta_html="\n".join(meta_items),
-        sections_html=sections_html,
-        refs_html=refs_html or "<p>Nenhuma referencia registada.</p>",
-        date=datetime.now().strftime("%d/%m/%Y"),
-    )
-    return final_html, 200, {"Content-Type": "text/html; charset=utf-8", "Content-Disposition": "attachment; filename={}.html".format(re.sub(r'[^\w\s-]', '', work.get("title", "trabalho").replace(" ", "_"))[:50])}
+        for para_text in paragraphs:
+            p = doc.add_paragraph()
+            p.paragraph_format.first_line_indent = Cm(1.25)
+            p.paragraph_format.line_spacing = 2.0
+            run = p.add_run(para_text)
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(12)
+
+    if refs:
+        doc.add_page_break()
+        h = doc.add_heading("Referencias Bibliograficas", level=1)
+        for run in h.runs:
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(14)
+            run.font.color.rgb = RGBColor(0, 0, 0)
+
+        for r in refs:
+            authors = (r.get("authors") or "").strip().rstrip(".")
+            year = r.get("year") or "s.d."
+            title_ref = (r.get("title") or "").strip().rstrip(".")
+            source = (r.get("source") or "").strip()
+            doi = (r.get("doi") or "").strip()
+            publisher = (r.get("publisher") or "").strip()
+            pages = (r.get("pages") or "").strip()
+            apa = "{} ({}). {}. ".format(authors, year, title_ref)
+            if source:
+                if pages:
+                    apa += "{}. pp. {}. ".format(source, pages)
+                else:
+                    apa += "{}. ".format(source)
+            if publisher:
+                apa += "{}. ".format(publisher)
+            if doi:
+                apa += "https://doi.org/{}".format(doi)
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Cm(1.25)
+            p.paragraph_format.first_line_indent = Cm(-1.25)
+            p.paragraph_format.line_spacing = 2.0
+            run = p.add_run(apa.strip())
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(12)
+
+    p_footer = doc.add_paragraph()
+    p_footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p_footer.add_run("Gerado por Cussara Academic - {}".format(datetime.now().strftime("%d/%m/%Y")))
+    r.font.name = 'Times New Roman'
+    r.font.size = Pt(10)
+    r.font.color.rgb = RGBColor(128, 128, 128)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+
+    filename = re.sub(r'[^\w\s-]', '', title.replace(" ", "_"))[:50] + ".docx"
+    return buf.getvalue(), 200, {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": "attachment; filename={}".format(filename),
+    }
 
 
 if __name__ == "__main__":

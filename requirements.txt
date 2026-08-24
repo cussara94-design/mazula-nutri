@@ -3,3 +3,4 @@ werkzeug
 libsql-experimental
 requests
 bleach
+python-docx
