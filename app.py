@@ -10,9 +10,14 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE_PATH = os.path.join(BASE_DIR, "nutriagenda.db")
 TURSO_URL = os.environ.get("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
+
+if TURSO_URL:
+    DATABASE_PATH = None
+else:
+    _db_dir = "/tmp" if not os.access(BASE_DIR, os.W_OK) else BASE_DIR
+    DATABASE_PATH = os.path.join(_db_dir, "nutriagenda.db")
 
 app = Flask(__name__)
 app.config.update(
@@ -414,9 +419,9 @@ def get_db():
             import libsql_experimental as libsql
             g.db = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
         else:
-            import sqlite3
-            conn = sqlite3.connect(DATABASE_PATH)
-            conn.row_factory = sqlite3.Row
+            import sqlite3 as _sqlite3
+            conn = _sqlite3.connect(DATABASE_PATH)
+            conn.row_factory = _sqlite3.Row
             conn.execute("PRAGMA foreign_keys=ON")
             conn.execute("PRAGMA journal_mode=WAL")
             g.db = conn
@@ -433,7 +438,10 @@ def close_db(_exc=None):
 def init_db():
     db = get_db()
     for stmt in SCHEMA:
-        db.execute(stmt)
+        try:
+            db.execute(stmt)
+        except Exception:
+            pass
     db.commit()
 
 
