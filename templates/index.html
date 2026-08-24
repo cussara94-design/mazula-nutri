@@ -3,28 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trabalho Facil</title>
+  <title>Cussara Academic</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="app">
     <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="brand-mark">T</div>
-        <div>Trabalho<small>Facil</small></div>
-      </div>
-      <nav class="nav" aria-label="Navegacao principal">
+      <div class="brand"><div class="brand-mark">C</div><div>Cussara<small>Academic</small></div></div>
+      <nav class="nav">
         <button class="active" data-view="dashboard"><span class="nav-icon">&#8962;</span><span class="nav-label">Painel</span></button>
         <button data-view="works"><span class="nav-icon">&#9998;</span><span class="nav-label">Trabalhos</span></button>
         <button data-view="references"><span class="nav-icon">&#8220;</span><span class="nav-label">Referencias</span></button>
       </nav>
-      <div class="user-box">
-        <div class="avatar" id="userAvatar">A</div>
-        <div><strong id="userName">Academico</strong><span id="userEmail"></span></div>
-      </div>
+      <div class="user-box"><div class="avatar" id="userAvatar">A</div><div><strong id="userName">Academico</strong><span id="userEmail"></span></div></div>
     </aside>
 
     <main>
@@ -32,15 +26,15 @@
         <div>
           <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">&#9776;</button>
           <h1 id="pageTitle">Cussara Academic</h1>
-          <p class="subtitle" id="pageSubtitle">Gerador de trabalhos academicos com IA</p>
+          <p class="subtitle" id="pageSubtitle">Gere trabalhos academicos com IA</p>
         </div>
         <div class="actions">
-          <button class="btn btn-primary" id="btnNewWork" onclick="openNewWorkDialog()">+ Novo Trabalho</button>
+          <button class="btn btn-primary" onclick="openNewWorkDialog()">+ Novo Trabalho</button>
           <button class="btn btn-ghost" onclick="doLogout()" title="Sair">&#10140;</button>
         </div>
       </header>
 
-      <div class="loading-overlay" id="loading" style="display:none"><div class="spinner"></div><p>A carregar...</p></div>
+      <div class="loading-overlay" id="loading" style="display:none"><div class="spinner"></div><p>A processar...</p></div>
 
       <section class="content">
         <div class="view active" id="dashboard"></div>
@@ -53,137 +47,72 @@
 
   <dialog id="newWorkDialog">
     <form method="dialog" id="newWorkForm">
-      <div class="modal-head">
-        <div><h2>Novo trabalho academico</h2><p>Escolha o tipo e defina o tema do seu trabalho.</p></div>
-        <button class="close" value="cancel" aria-label="Fechar">&times;</button>
-      </div>
-      <div class="form">
-        <div class="form-grid">
-          <div class="field full">
-            <label for="wTitle">Titulo do trabalho *</label>
-            <input id="wTitle" required placeholder="Ex.: A influencia da alimentacao no desempenho academico">
-          </div>
-          <div class="field">
-            <label for="wType">Tipo de trabalho *</label>
-            <select id="wType" required></select>
-          </div>
-          <div class="field">
-            <label for="wArea">Area de estudo</label>
-            <input id="wArea" placeholder="Ex.: Nutricao, Educacao, Saude Publica">
-          </div>
-          <div class="field full">
-            <label for="wTheme">Tema / Tema central</label>
-            <textarea id="wTheme" rows="3" placeholder="Descreva o tema central do seu trabalho. Ex.: Analise da qualidade alimentar de estudantes universitarios de Maputo."></textarea>
-          </div>
-          <div class="field">
-            <label for="wKeywords">Palavras-chave</label>
-            <input id="wKeywords" placeholder="Ex.: alimentacao, estudantes, universidade">
-          </div>
-          <div class="field">
-            <label for="wObjectives">Objectivos</label>
-            <textarea id="wObjectives" rows="2" placeholder="Ex.: Avaliar a qualidade alimentar e identificar factores associados."></textarea>
-          </div>
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn" value="cancel">Cancelar</button>
-        <button class="btn btn-primary" value="default">Criar trabalho</button>
-      </div>
+      <div class="modal-head"><div><h2>Novo trabalho academico</h2><p>Escolha o tipo e defina o tema.</p></div><button class="close" value="cancel">&times;</button></div>
+      <div class="form"><div class="form-grid">
+        <div class="field full"><label>Titulo *</label><input id="wTitle" required placeholder="Ex.: A influencia da alimentacao no desempenho academico"></div>
+        <div class="field"><label>Tipo *</label><select id="wType" required></select></div>
+        <div class="field"><label>Area</label><input id="wArea" placeholder="Ex.: Nutricao, Educacao"></div>
+        <div class="field full"><label>Tema central</label><textarea id="wTheme" rows="3" placeholder="Descreva o tema do trabalho"></textarea></div>
+        <div class="field"><label>Palavras-chave</label><input id="wKeywords" placeholder="Ex.: alimentacao, estudantes"></div>
+        <div class="field"><label>Objectivos</label><textarea id="wObjectives" rows="2" placeholder="Objectivo geral e especificos"></textarea></div>
+        <div class="field"><label>Meta de palavras</label><input id="wTarget" type="number" value="10000" min="1000" step="500"></div>
+      </div></div>
+      <div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Criar trabalho</button></div>
     </form>
   </dialog>
 
   <dialog id="refDialog">
     <form method="dialog" id="refForm">
-      <div class="modal-head">
-        <div><h2 id="refDialogTitle">Nova referencia</h2><p>Preencha os dados bibliograficos para citacao APA.</p></div>
-        <button class="close" value="cancel" aria-label="Fechar">&times;</button>
-      </div>
-      <div class="form">
-        <div class="form-grid">
-          <div class="field full">
-            <label for="rAuthors">Autores (ex.: Silva, J., Santos, M.) *</label>
-            <input id="rAuthors" required placeholder="Ex.: Silva, J., Santos, M.">
-          </div>
-          <div class="field">
-            <label for="rYear">Ano</label>
-            <input id="rYear" placeholder="Ex.: 2024">
-          </div>
-          <div class="field">
-            <label for="rType">Tipo</label>
-            <select id="rType">
-              <option value="livro">Livro</option>
-              <option value="artigo">Artigo cientifico</option>
-              <option value="tese">Tese / Dissertacao</option>
-              <option value="site">Site / Pagina web</option>
-              <option value="capitulo">Capitulo de livro</option>
-              <option value="actas">Actas de conferencia</option>
-            </select>
-          </div>
-          <div class="field full">
-            <label for="rTitle">Titulo da obra *</label>
-            <input id="rTitle" required placeholder="Ex.: Nutricao e Saude Publica">
-          </div>
-          <div class="field">
-            <label for="rSource">Fonte (revista, editora, instituicao)</label>
-            <input id="rSource" placeholder="Ex.: Revista de Nutricao, Editora Universitaria">
-          </div>
-          <div class="field">
-            <label for="rPages">Paginas</label>
-            <input id="rPages" placeholder="Ex.: 45-67">
-          </div>
-          <div class="field">
-            <label for="rPublisher">Editora</label>
-            <input id="rPublisher" placeholder="Ex.: Ed. Universidade Eduardo Mondlane">
-          </div>
-          <div class="field">
-            <label for="rEdition">Edicao</label>
-            <input id="rEdition" placeholder="Ex.: 3a ed.">
-          </div>
-          <div class="field">
-            <label for="rDoi">DOI</label>
-            <input id="rDoi" placeholder="Ex.: 10.1000/xyz123">
-          </div>
-          <div class="field">
-            <label for="rUrl">URL</label>
-            <input id="rUrl" placeholder="Ex.: https://doi.org/10.1000/xyz123">
-          </div>
-          <input type="hidden" id="rWorkId" value="">
-          <input type="hidden" id="rEditId" value="">
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn" value="cancel">Cancelar</button>
-        <button class="btn btn-primary" value="default">Salvar referencia</button>
-      </div>
+      <div class="modal-head"><div><h2 id="refDialogTitle">Nova referencia</h2><p>Preencha os dados bibliograficos (formato APA).</p></div><button class="close" value="cancel">&times;</button></div>
+      <div class="form"><div class="form-grid">
+        <div class="field full"><label>Importar por DOI / ISBN</label><div class="doi-import"><input id="doiInput" placeholder="Cole o DOI (ex: 10.1000/xyz) ou ISBN"><button type="button" class="btn btn-outline" onclick="importDOI()">Importar</button></div></div>
+        <div class="field full"><label>Autores *</label><input id="rAuthors" required placeholder="Ex.: Silva, J., Santos, M."></div>
+        <div class="field"><label>Ano</label><input id="rYear" placeholder="Ex.: 2024"></div>
+        <div class="field"><label>Tipo</label><select id="rType"><option value="livro">Livro</option><option value="artigo">Artigo cientifico</option><option value="tese">Tese / Dissertacao</option><option value="site">Site / Pagina web</option><option value="capitulo">Capitulo de livro</option><option value="actas">Actas de conferencia</option></select></div>
+        <div class="field full"><label>Titulo da obra *</label><input id="rTitle" required placeholder="Ex.: Nutricao e Saude Publica"></div>
+        <div class="field"><label>Fonte</label><input id="rSource" placeholder="Ex.: Revista de Nutricao"></div>
+        <div class="field"><label>Paginas</label><input id="rPages" placeholder="Ex.: 45-67"></div>
+        <div class="field"><label>Editora</label><input id="rPublisher" placeholder="Ex.: Ed. UEM"></div>
+        <div class="field"><label>Edicao</label><input id="rEdition" placeholder="Ex.: 3a ed."></div>
+        <div class="field"><label>DOI</label><input id="rDoi" placeholder="Ex.: 10.1000/xyz123"></div>
+        <div class="field"><label>URL</label><input id="rUrl" placeholder="Ex.: https://doi.org/..."></div>
+        <input type="hidden" id="rWorkId" value=""><input type="hidden" id="rEditId" value="">
+      </div></div>
+      <div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Salvar referencia</button></div>
     </form>
   </dialog>
 
   <dialog id="aiDialog">
     <form method="dialog" id="aiForm">
-      <div class="modal-head">
-        <div><h2>Gerar com IA (Groq)</h2><p>Oriente a IA sobre o que deve gerar para a secção.</p></div>
-        <button class="close" value="cancel" aria-label="Fechar">&times;</button>
-      </div>
-      <div class="form">
-        <div class="form-grid">
-          <div class="field full">
-            <label for="aiPrompt">Orientacao / Prompt *</label>
-            <textarea id="aiPrompt" rows="4" required placeholder="Ex.: Explique a importancia da alimentacao saudavel para estudantes universitarios, citando autores relevantes na area de nutricao."></textarea>
-          </div>
-          <div class="field full">
-            <label id="aiSectionLabel">Secção alvo</label>
-            <div class="ai-section-info" id="aiSectionInfo">Introducao</div>
+      <div class="modal-head"><div><h2 id="aiDialogTitle">Assistente IA</h2><p id="aiDialogSub">Gere e melhore o texto academico</p></div><button class="close" value="cancel">&times;</button></div>
+      <div class="form"><div class="form-grid">
+        <div class="field full"><label>Modo</label>
+          <div class="ai-modes" id="aiModes">
+            <button type="button" class="ai-mode active" data-mode="generate">&#9998; Gerar</button>
+            <button type="button" class="ai-mode" data-mode="summarize">&#9776; Resumir</button>
+            <button type="button" class="ai-mode" data-mode="expand">&#8594; Expandir</button>
+            <button type="button" class="ai-mode" data-mode="rewrite">&#8634; Reescrever</button>
+            <button type="button" class="ai-mode" data-mode="translate">&#9999; Traduzir</button>
+            <button type="button" class="ai-mode" data-mode="correct">&#10003; Corrigir</button>
           </div>
         </div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn" value="cancel">Cancelar</button>
-        <button class="btn btn-primary" value="default" id="aiGenerateBtn">Gerar texto</button>
-      </div>
+        <div class="field full" id="aiTargetField"><label>Texto seleccionado</label><textarea id="aiSelected" rows="3" placeholder="Texto seleccionado no editor (para resumir, expandir, reescrever, traduzir, corrigir)"></textarea></div>
+        <div class="field full"><label>Orientacao / Prompt</label><textarea id="aiPrompt" rows="3" placeholder="Instrucoes para a IA..."></textarea></div>
+      </div></div>
+      <div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default" id="aiGenerateBtn">Processar</button></div>
     </form>
   </dialog>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="chatDialog">
+    <div class="modal-head"><div><h2>Chat IA</h2><p>Converse sobre o seu trabalho</p></div><div class="chat-actions"><button type="button" class="btn btn-sm" onclick="clearChat()">Limpar</button><button class="close" onclick="document.getElementById('chatDialog').close()">&times;</button></div></div>
+    <div class="chat-messages" id="chatMessages"><div class="chat-empty">Pergunte qualquer coisa sobre o seu trabalho...</div></div>
+    <form id="chatForm" class="chat-input">
+      <textarea id="chatInput" rows="1" placeholder="Escreva sua pergunta..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+      <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
