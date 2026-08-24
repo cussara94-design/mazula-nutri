@@ -656,7 +656,7 @@ REGRAS OBRIGATORIAS:
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": "Bearer {}".format(GROQ_API_KEY), "Content-Type": "application/json"},
             json={
-                "model": "llama-3.3-70b-versatile",
+                "model": "qwen/qwen3.6-27b",
                 "messages": [
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": prompt or "Gere o conteudo academico."},
