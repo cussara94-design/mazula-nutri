@@ -47,6 +47,7 @@ function switchContent(view){
   else if(view==='works'){renderWorksList();document.getElementById('worksView').classList.add('active')}
   else if(view==='refs'){renderRefsFull();document.getElementById('refsView').classList.add('active')}
   else if(view==='ai'){renderAiModes();document.getElementById('aiView').classList.add('active')}
+  else if(view==='tools'){document.getElementById('toolsView').classList.add('active')}
   else{document.getElementById('dashboardView').classList.add('active');renderDashboard()}
 }
 
@@ -143,6 +144,7 @@ function renderEditor(){
   document.getElementById('editorWordCount').textContent=fmtNum(wc)+' / '+fmtNum(tw);
   document.getElementById('editorSectionCount').textContent=(w.sections||[]).length;
   document.getElementById('editorRefCount').textContent=S.refs.length;
+  document.getElementById('editorArticleCount').textContent=w.article_count||0;
   document.getElementById('editorTarget').textContent=w.level||w.area||'Licenciatura';
   const pct=Math.min(100,Math.round(wc/tw*100));
   document.getElementById('editorProgress').style.width=pct+'%';
@@ -164,7 +166,7 @@ function renderSections(){
         <h4>📌 ${esc(s.title||'Secção '+(i+1))}</h4>
         <div class="section-actions">
           <span class="word-count-badge">${fmtNum(wc)} palavras</span>
-          <button class="btn btn-sm btn-ghost" onclick="generateSection(${i})" title="Gerar com IA">✨</button>
+          <button class="btn btn-sm btn-primary" onclick="generateSection(${i})" title="Gerar com IA" style="font-size:11px">✨ Gerar</button>
           <button class="btn btn-sm btn-ghost" onclick="deleteSection(${i})" title="Apagar">🗑</button>
         </div>
       </div>
@@ -256,12 +258,24 @@ async function deleteSection(i){
 async function generateSection(i){
   const w=S.currentWork;if(!w)return;
   const sec=(w.sections||[])[i];if(!sec)return;
+  const hasArticles=(w.article_count||0)>0;
+  let useRag=hasArticles;
+  if(hasArticles){
+    useRag=confirm('Tem artigos importados!\n\nOK = Usar artigos como fonte (citações reais)\nCancelar = Gerar sem artigos');
+  }
   const prompt=sec.content?
     `Expande e melhora este texto académico mantendo o contexto:\n\n${sec.content.replace(/<[^>]+>/g,'')}\n\nTema: ${w.title}. Norma: ${w.norm||'APA 7ª'}. Tom académico. Use citações reais APA.`:
-    `Escreve o conteúdo da secção "${sec.title}" do trabalho "${w.title}" (${w.work_type||w.type||'Monografia'}, ${w.level||w.area||'Licenciatura'}). Norma ${w.norm||'APA 7ª'}. Use citações reais em APA 7ª. Tom académico. Mínimo 500 palavras. Inclua referências reais no final da secção.`;
+    `Escreve o conteúdo da secção "${sec.title}" do trabalho "${w.title}" (${w.work_type||w.type||'Monografia'}, ${w.level||w.area||'Licenciatura'}). Norma ${w.norm||'APA 7ª'}. Use citações reais em APA 7ª. Tom académico. Mínimo 500 palavras.`;
   toast('A gerar com IA...');
   try{
-    const d=await aiRequest('generate',prompt,'Português','Académico');
+    let d;
+    if(useRag&&hasArticles){
+      d=await fetch('/api/works/'+w.id+'/generate-from-articles',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({prompt:prompt,section_title:sec.title})
+      }).then(r=>r.json());
+    }else{
+      d=await aiRequest('generate',prompt,'Português','Académico');
+    }
     if(d.result){
       const clean=d.result.replace(/<[^>]+>/g,'');
       sec.content=clean.replace(/\n/g,'<br>');
@@ -494,3 +508,87 @@ function showLoading(m){const o=document.getElementById('loadingOverlay');o.quer
 function hideLoading(){document.getElementById('loadingOverlay').style.display='none'}
 
 function updateAll(){renderDashboard();renderWorksList();renderEditorRefs();renderRefsFull();renderApaPreview()}
+
+/* ── Upload Article ── */
+async function doUploadArticle(){
+  const file=document.getElementById('articleFile')?.files[0];
+  if(!file){toast('Selecione um ficheiro.');return}
+  const w=S.currentWork;if(!w){toast('Abra um trabalho primeiro.');return}
+  const fd=new FormData();fd.append('file',file);fd.append('work_id',w.id);
+  const res=document.getElementById('uploadResult');
+  showLoading('A importar artigo...');
+  try{
+    const r=await fetch('/api/upload-article',{method:'POST',body:fd}).then(r=>r.json());
+    hideLoading();
+    if(r.error){res.innerHTML='<span style="color:var(--red)">❌ '+esc(r.error)+'</span>';res.style.display='block';return}
+    res.innerHTML='<span style="color:var(--green)">✅ <strong>'+esc(r.filename)+'</strong> importado! '+r.chunks+' trechos, '+r.chars+' caracteres. Ref #'+r.ref_id+'</span>';
+    res.style.display='block';
+    S.refs.push({id:r.ref_id,title:r.filename||'Artigo',authors:'Importado'});
+    renderEditorRefs();renderRefsFull();
+    toast('Artigo importado com sucesso!');
+  }catch(e){hideLoading();res.innerHTML='<span style="color:var(--red)">❌ Erro: '+esc(e.message)+'</span>';res.style.display='block'}
+}
+
+/* ── Upload Data ── */
+let _uploadedData=null;
+async function doUploadData(){
+  const file=document.getElementById('dataFile')?.files[0];
+  if(!file){toast('Selecione um ficheiro.');return}
+  const fd=new FormData();fd.append('file',file);
+  showLoading('A carregar dados...');
+  try{
+    const r=await fetch('/api/upload-data',{method:'POST',body:fd}).then(r=>r.json());
+    hideLoading();
+    if(r.error){toast(r.error);return}
+    _uploadedData=r;
+    const prev=document.getElementById('dataPreview');
+    let html='<h4 style="margin:0 0 8px;font-size:13px">'+esc(r.filename)+' — '+r.total_rows+' linhas, '+r.headers.length+' colunas</h4>';
+    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
+    r.headers.forEach(h=>{html+='<th style="padding:6px 8px;border:1px solid var(--line);background:var(--primary-bg);text-align:left;font-weight:650">'+esc(h)+'</th>'});
+    html+='</tr></thead><tbody>';
+    r.rows.slice(0,10).forEach(row=>{
+      html+='<tr>';row.forEach(c=>{html+='<td style="padding:5px 8px;border:1px solid var(--line)">'+esc(c)+'</td>'});html+='</tr>'
+    });
+    if(r.total_rows>10)html+='<tr><td colspan="'+r.headers.length+'" style="padding:6px;text-align:center;color:var(--muted);font-size:11px">... mais '+(r.total_rows-10)+' linhas</td></tr>';
+    html+='</tbody></table></div>';
+    html+='<div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="doAnalyzeData()">📊 Analisar Dados (APA/ABNT)</button></div>';
+    prev.innerHTML=html;prev.style.display='block';
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}
+
+async function doAnalyzeData(){
+  if(!_uploadedData){toast('Carregue dados primeiro.');return}
+  showLoading('A analisar dados...');
+  try{
+    const r=await fetch('/api/analyze-data',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({headers:_uploadedData.headers,rows:_uploadedData.rows,norm:'APA'})
+    }).then(r=>r.json());
+    hideLoading();
+    if(r.error){toast(r.error);return}
+    const prev=document.getElementById('dataPreview');
+    prev.innerHTML+='<div style="margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px;line-height:1.7;white-space:pre-wrap;font-family:Merriweather,Georgia,serif">'+esc(r.result)+'</div>';
+    toast('Análise concluída!');
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}
+
+/* ── Questionnaire ── */
+async function doGenerateQuestionnaire(){
+  const prompt=document.getElementById('questionnairePrompt')?.value||'';
+  showLoading('A gerar questionário...');
+  try{
+    const r=await fetch('/api/generate-questionnaire',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({work_id:S.currentWork?.id,prompt:prompt})
+    }).then(r=>r.json());
+    hideLoading();
+    if(r.error){toast(r.error);return}
+    closeDialog('questionnaireDialog');
+    const aiResult=document.getElementById('aiResult');
+    const aiText=document.getElementById('aiResultText');
+    if(aiResult&&aiText){
+      aiResult.style.display='block';
+      aiText.textContent=r.result;
+      switchContent('ai');
+    }
+    toast('Questionário gerado!');
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}

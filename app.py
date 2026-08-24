@@ -83,10 +83,20 @@ SCHEMA = [
         content TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )""",
+    """CREATE TABLE IF NOT EXISTS article_chunks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        work_id INTEGER NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+        ref_id INTEGER REFERENCES references_(id) ON DELETE SET NULL,
+        filename TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL DEFAULT 0,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_works_user ON works(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_sections_work ON sections(work_id, order_index)",
     "CREATE INDEX IF NOT EXISTS idx_references_work ON references_(work_id)",
     "CREATE INDEX IF NOT EXISTS idx_chat_work ON chat_history(work_id)",
+    "CREATE INDEX IF NOT EXISTS idx_chunks_work ON article_chunks(work_id)",
 ]
 
 WORK_TYPES = {
@@ -487,6 +497,7 @@ def works_get(work_id):
         s["word_count"] = len(content.split()) if content.strip() else 0
         total_words += s["word_count"]
     work["total_words"] = total_words
+    work["article_count"] = db.execute("SELECT COUNT(*) as c FROM article_chunks WHERE work_id = ?", (work_id,)).fetchone()["c"]
     return jsonify({"work": work})
 
 
@@ -717,7 +728,16 @@ def api_all():
     works = rows_to_list(db.execute("SELECT * FROM works WHERE user_id = ? ORDER BY updated_at DESC", (uid,)).fetchall())
     refs = rows_to_list(db.execute("SELECT * FROM references_ WHERE work_id IN (SELECT id FROM works WHERE user_id = ?) ORDER BY authors", (uid,)).fetchall())
     chat = rows_to_list(db.execute("SELECT * FROM chat_history WHERE work_id IN (SELECT id FROM works WHERE user_id = ?) ORDER BY id", (uid,)).fetchall())
-    return jsonify({"works": works, "references": refs, "chat": chat})
+    total_wc = 0
+    for w in works:
+        secs = db.execute("SELECT content FROM sections WHERE work_id = ?", (w["id"],)).fetchall()
+        wc = 0
+        for s in secs:
+            c = s[0] if isinstance(s, tuple) else s["content"]
+            wc += len(c.split()) if c and c.strip() else 0
+        w["word_count"] = wc
+        total_wc += wc
+    return jsonify({"works": works, "references": refs, "chat": chat, "total_words": total_wc})
 
 
 @app.route("/api/ai", methods=["POST"])
@@ -950,6 +970,288 @@ def api_refs_delete(ref_id):
     db.execute("DELETE FROM references_ WHERE id = ?", (ref_id,))
     db.commit()
     return jsonify({"message": "Referencia removida."})
+
+
+@app.route("/api/upload-article", methods=["POST"])
+@login_required
+def upload_article():
+    from PyPDF2 import PdfReader
+    work_id = request.form.get("work_id")
+    if not work_id:
+        return jsonify({"error": "work_id obrigatorio."}), 400
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", int(work_id), uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    if "file" not in request.files:
+        return jsonify({"error": "Nenhum ficheiro enviado."}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "Nome de ficheiro vazio."}), 400
+    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+    if ext not in ("pdf", "txt"):
+        return jsonify({"error": "Formato nao suportado. Use PDF ou TXT."}), 400
+    try:
+        if ext == "pdf":
+            reader = PdfReader(f)
+            text = ""
+            for page in reader.pages:
+                t = page.extract_text()
+                if t:
+                    text += t + "\n"
+        else:
+            text = f.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        return jsonify({"error": "Erro ao ler ficheiro: {}".format(str(e))}), 500
+    if not text.strip():
+        return jsonify({"error": "Nenhum texto extraido do ficheiro."}), 400
+    title_from_pdf = ""
+    first_lines = text.strip()[:200]
+    if first_lines:
+        title_from_pdf = first_lines.split("\n")[0].strip()[:200]
+    authors_str = "Autor desconhecido"
+    year = ""
+    now = now_str()
+    cur_ref = db.execute(
+        "INSERT INTO references_ (work_id, authors, year, title, source, doi, url, ref_type, pages, publisher, edition, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (int(work_id), authors_str, year, title_from_pdf or f.filename, f.filename, "", "", "artigo", "", "", "", now),
+    )
+    ref_id = cur_ref.lastrowid
+    db.commit()
+    chunk_size = 800
+    overlap = 200
+    words = text.split()
+    chunks = []
+    i = 0
+    while i < len(words):
+        chunk = " ".join(words[i:i + chunk_size])
+        if chunk.strip():
+            chunks.append(chunk)
+        i += chunk_size - overlap
+    for idx, chunk in enumerate(chunks):
+        db.execute(
+            "INSERT INTO article_chunks (work_id, ref_id, filename, chunk_index, content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (int(work_id), ref_id, f.filename, idx, chunk, now),
+        )
+    db.commit()
+    return jsonify({
+        "message": "Artigo importado com sucesso.",
+        "ref_id": ref_id,
+        "filename": f.filename,
+        "chunks": len(chunks),
+        "chars": len(text),
+    }), 201
+
+
+@app.route("/api/works/<int:work_id>/articles", methods=["GET"])
+@login_required
+def list_articles(work_id):
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", work_id, uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    rows = db.execute(
+        "SELECT r.id, r.title, r.authors, r.year, COUNT(c.id) as chunks FROM references_ r LEFT JOIN article_chunks c ON c.ref_id = r.id WHERE r.work_id = ? GROUP BY r.id ORDER BY r.title",
+        (work_id,)
+    ).fetchall()
+    return jsonify({"articles": rows_to_list(rows)})
+
+
+@app.route("/api/works/<int:work_id>/articles/<int:ref_id>", methods=["DELETE"])
+@login_required
+def delete_article(work_id, ref_id):
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", work_id, uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    db.execute("DELETE FROM article_chunks WHERE ref_id = ? AND work_id = ?", (ref_id, work_id))
+    db.execute("DELETE FROM references_ WHERE id = ? AND work_id = ?", (ref_id, work_id))
+    db.commit()
+    return jsonify({"message": "Artigo removido."})
+
+
+@app.route("/api/works/<int:work_id>/generate-from-articles", methods=["POST"])
+@login_required
+def generate_from_articles(work_id):
+    if not GROQ_API_KEY:
+        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", work_id, uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    data = json_body()
+    prompt = (data.get("prompt") or "").strip()
+    section_title = (data.get("section_title") or "").strip()
+    if not prompt:
+        prompt = "Escreva o conteudo da secção '{}'".format(section_title or "Trabalho")
+    all_chunks = db.execute(
+        "SELECT content, filename FROM article_chunks WHERE work_id = ? ORDER BY chunk_index LIMIT 50",
+        (work_id,)
+    ).fetchall()
+    if not all_chunks:
+        return jsonify({"error": "Nenhum artigo importado. Carregue artigos PDF primeiro."}), 400
+    refs = db.execute(
+        "SELECT authors, year, title, doi FROM references_ WHERE work_id = ? ORDER BY authors",
+        (work_id,)
+    ).fetchall()
+    refs_text = ""
+    for r in refs:
+        rd = row_to_dict(r)
+        refs_text += "- {} ({}) {}. {}\n".format(
+            rd.get("authors") or "", rd.get("year") or "s.d.",
+            rd.get("title") or "", rd.get("doi") or ""
+        )
+    chunks_text = ""
+    for c in all_chunks:
+        cd = row_to_dict(c)
+        chunks_text += "\n--- Fonte: {} ---\n{}\n".format(cd["filename"], cd["content"][:600])
+    sys_msg = """Voce e um assistente academico especializado em trabalhos cientificos em Mocambique.
+REGRAS OBRIGATORIAS:
+1. Use APENAS informacoes dos artigos fornecidos abaixo como fonte.
+2. Cite sempre que possivel usando formato APA 7a: (Autores, Ano)
+3. NUNCA invente autores, datas ou dados. Use apenas o que esta nos artigos.
+4. Linguagem formal, academica, terceira pessoa, vocabulario tecnico.
+5. Paragrafos completos com no minimo 3 frases cada.
+6. Inclua citacoes no texto e referencie os artigos用车.
+
+ARTIGOS DISPONIVEIS:
+{}
+REFERENCIAS:
+{}
+""".format(chunks_text[:6000], refs_text)
+    messages = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": prompt + "\n\nEscreva o conteudo academico baseado nos artigos acima. Cite em APA 7a."},
+    ]
+    text, error = groq_chat(messages, temperature=0.6, max_tokens=4096)
+    if error:
+        return jsonify({"error": error}), 502
+    return jsonify({"result": text})
+
+
+@app.route("/api/upload-data", methods=["POST"])
+@login_required
+def upload_data():
+    work_id = request.form.get("work_id")
+    if not work_id:
+        return jsonify({"error": "work_id obrigatorio."}), 400
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", int(work_id), uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    if "file" not in request.files:
+        return jsonify({"error": "Nenhum ficheiro enviado."}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "Nome de ficheiro vazio."}), 400
+    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+    if ext not in ("csv", "xlsx", "xls"):
+        return jsonify({"error": "Formato nao suportado. Use CSV ou Excel."}), 400
+    try:
+        if ext == "csv":
+            import csv, io
+            content = f.read().decode("utf-8", errors="replace")
+            reader = csv.reader(io.StringIO(content))
+            rows = [row for row in reader if any(cell.strip() for cell in row)]
+        else:
+            import openpyxl
+            wb = openpyxl.load_workbook(f, read_only=True)
+            ws = wb.active
+            rows = []
+            for row in ws.iter_rows(values_only=True):
+                r = [str(cell) if cell is not None else "" for cell in row]
+                if any(c.strip() for c in r):
+                    rows.append(r)
+            wb.close()
+    except Exception as e:
+        return jsonify({"error": "Erro ao ler ficheiro: {}".format(str(e))}), 500
+    if len(rows) < 2:
+        return jsonify({"error": "Ficheiro precisa de pelo menos 2 linhas (cabecalho + dados)."}), 400
+    headers = rows[0]
+    data_rows = rows[1:]
+    return jsonify({
+        "filename": f.filename,
+        "headers": headers,
+        "rows": data_rows[:100],
+        "total_rows": len(data_rows),
+    })
+
+
+@app.route("/api/analyze-data", methods=["POST"])
+@login_required
+def analyze_data():
+    if not GROQ_API_KEY:
+        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    data = json_body()
+    headers = data.get("headers") or []
+    rows = data.get("rows") or []
+    prompt = (data.get("prompt") or "").strip()
+    norm = data.get("norm") or "APA"
+    if not headers or not rows:
+        return jsonify({"error": "Dados obrigatorios."}), 400
+    table_str = " | ".join(headers) + "\n" + " | ".join(["---"] * len(headers)) + "\n"
+    for row in rows[:50]:
+        table_str += " | ".join(str(c)[:50] for c in row) + "\n"
+    sys_msg = """Voce e um analista de dados academicos especializado em estatistica descritiva.
+Analise os dados fornecidos e gere:
+1. Tabelas formatadas em {norm} com estatisticas descritivas (media, mediana, moda, DP, min, max)
+2. Analise interpretativa dos dados em linguagem academica
+3. Formate tabelas usando o padrao academico (sem linhas verticais, apenas horizontal)
+
+Dados:
+{}
+""".format(norm, table_str[:4000])
+    user_msg = prompt or "Analise estes dados e gere tabelas em formato academico {} com estatisticas descritivas e interpretação.".format(norm)
+    messages = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": user_msg},
+    ]
+    text, error = groq_chat(messages, temperature=0.5, max_tokens=4096)
+    if error:
+        return jsonify({"error": error}), 502
+    return jsonify({"result": text})
+
+
+@app.route("/api/generate-questionnaire", methods=["POST"])
+@login_required
+def generate_questionnaire():
+    if not GROQ_API_KEY:
+        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    uid = session["user_id"]
+    data = json_body()
+    work_id = data.get("work_id")
+    prompt = (data.get("prompt") or "").strip()
+    db = get_db()
+    work_ctx = ""
+    if work_id:
+        _, work_ctx = get_work_context(db, int(work_id), uid) or ("", "")
+    sys_msg = """Voce e um metodologo de pesquisa academica especializado em elaborar instrumentos de coleta de dados.
+Gere um questionario completo e profissional em formato academico.
+REGRAS:
+1. Cabecalho: titulo, instituicao, data, instrucoes gerais
+2. Secoes claras com titulo
+3. Questoes variadas: escala Likert, escolha multipla, aberta, sim/nao
+4. Linguagem clara, neutra, sem ambiguidades
+5. Minimo 15 questoes distribuidas por seccoes
+6. Formato numerado por secao
+7. Incluir escala de Likert completa quando aplicavel
+
+{}
+""".format(work_ctx[:2000] if work_ctx else "Contexto: Trabalho academico generico.")
+    user_msg = prompt or "Gere um instrumento de coleta de dados (questionario) completo para este trabalho."
+    messages = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": user_msg},
+    ]
+    text, error = groq_chat(messages, temperature=0.6, max_tokens=4096)
+    if error:
+        return jsonify({"error": error}), 502
+    return jsonify({"result": text})
 
 
 @app.route("/api/login", methods=["POST"])

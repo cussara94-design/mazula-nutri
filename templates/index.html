@@ -250,6 +250,7 @@
         <button data-view="works"><span class="nav-icon">📄</span><span class="nav-label">Trabalhos</span></button>
         <button data-view="refs"><span class="nav-icon">📚</span><span class="nav-label">Referências</span></button>
         <button data-view="ai"><span class="nav-icon">🤖</span><span class="nav-label">IA Assistente</span></button>
+        <button data-view="tools"><span class="nav-icon">🔧</span><span class="nav-label">Ferramentas</span></button>
       </nav>
       <div class="user-box" id="userBox">
         <div class="avatar">A</div>
@@ -322,16 +323,18 @@
             <div class="editor-actions">
               <span class="save-status" id="saveStatus">Guardado ✓</span>
               <button class="btn btn-sm" onclick="doAutoSave()" title="Guardar agora">💾 Guardar</button>
-              <button class="btn btn-sm" onclick="exportWork()" title="Exportar">📥 Exportar Word</button>
-              <button class="btn btn-sm btn-outline" onclick="openDoiDialog()" title="Importar referências">📥 DOI / ISBN</button>
-              <button class="btn btn-sm" onclick="openChatDialog()" title="Chat IA">🤖 Chat IA</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteCurrentWork()" title="Apagar trabalho">🗑</button>
+              <button class="btn btn-sm" onclick="exportWork()" title="Exportar Word">📥 Exportar</button>
+              <button class="btn btn-sm btn-outline" onclick="openDoiDialog()" title="Importar referências">📚 DOI/ISBN</button>
+              <button class="btn btn-sm btn-outline" onclick="showDialog('uploadArticleDialog')" title="Importar artigo PDF">📄 Artigo</button>
+              <button class="btn btn-sm" onclick="openChatDialog()" title="Chat IA">🤖 Chat</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteCurrentWork()" title="Apagar">🗑</button>
             </div>
           </div>
           <div class="meta-cards">
             <div class="meta-card"><strong>📖 Palavras</strong><p id="editorWordCount">0</p></div>
             <div class="meta-card"><strong>📄 Secções</strong><p id="editorSectionCount">0</p></div>
             <div class="meta-card"><strong>📚 Referências</strong><p id="editorRefCount">0</p></div>
+            <div class="meta-card"><strong>📰 Artigos</strong><p id="editorArticleCount">0</p></div>
             <div class="meta-card"><strong>🎯 Meta</strong><p id="editorTarget">—</p></div>
           </div>
         </div>
@@ -398,6 +401,33 @@
           </div>
         </div>
       </section>
+
+      <!-- ── Tools ── -->
+      <section id="toolsView" class="view">
+        <div class="topbar">
+          <div><h1>Ferramentas Académicas</h1><p class="subtitle">Análise de dados, questionários e importação de artigos.</p></div>
+        </div>
+        <div class="works-grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+          <div class="work-card" onclick="showDialog('uploadArticleDialog')">
+            <div class="work-card-header"><span class="work-type-badge">📄</span></div>
+            <h3>Importar Artigos</h3>
+            <p>Carregue PDFs ou TXTs para usar como fonte com citações reais APA.</p>
+            <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">R.A.G. com fontes reais →</span></div>
+          </div>
+          <div class="work-card" onclick="showDialog('uploadDataDialog')">
+            <div class="work-card-header"><span class="work-type-badge">📊</span></div>
+            <h3>Análise de Dados</h3>
+            <p>Importe Excel/CSV e gere tabelas APA/ABNT com estatísticas descritivas.</p>
+            <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Estatísticas →</span></div>
+          </div>
+          <div class="work-card" onclick="showDialog('questionnaireDialog')">
+            <div class="work-card-header"><span class="work-type-badge">📋</span></div>
+            <h3>Gerar Questionário</h3>
+            <p>Gere instrumentos de coleta de dados automaticamente baseados no teu trabalho.</p>
+            <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Gerar instrumento →</span></div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 </div>
@@ -450,6 +480,41 @@
   <div class="chat-input">
     <textarea id="chatInput" rows="2" placeholder="Escreve a tua mensagem..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
     <button class="btn btn-primary btn-sm" onclick="sendChat()">Enviar</button>
+  </div>
+</dialog>
+
+<dialog id="uploadArticleDialog">
+  <div class="modal-head">
+    <div><h2>📥 Importar Artigo</h2><p>Carregue um PDF ou TXT para usar como fonte com citações reais.</p></div>
+    <button class="close" onclick="closeDialog('uploadArticleDialog')">&times;</button>
+  </div>
+  <div class="form">
+    <div class="field full"><label>Ficheiro (PDF ou TXT)</label><input type="file" id="articleFile" accept=".pdf,.txt" style="border:1px solid var(--line);border-radius:var(--radius-xs);padding:10px"></div>
+    <div id="uploadResult" style="display:none;margin-top:12px;padding:12px;border-radius:var(--radius-sm);background:var(--primary-bg);font-size:13px"></div>
+    <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('uploadArticleDialog')">Fechar</button><button type="button" class="btn btn-primary" onclick="doUploadArticle()">📥 Carregar Artigo</button></div>
+  </div>
+</dialog>
+
+<dialog id="uploadDataDialog">
+  <div class="modal-head">
+    <div><h2>📊 Carregar Dados</h2><p>Importe dados de Excel ou CSV para análise estatística.</p></div>
+    <button class="close" onclick="closeDialog('uploadDataDialog')">&times;</button>
+  </div>
+  <div class="form">
+    <div class="field full"><label>Ficheiro (CSV ou Excel)</label><input type="file" id="dataFile" accept=".csv,.xlsx,.xls" style="border:1px solid var(--line);border-radius:var(--radius-xs);padding:10px"></div>
+    <div id="dataPreview" style="display:none;margin-top:12px"></div>
+    <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('uploadDataDialog')">Fechar</button><button type="button" class="btn btn-primary" onclick="doUploadData()">📊 Carregar Dados</button></div>
+  </div>
+</dialog>
+
+<dialog id="questionnaireDialog">
+  <div class="modal-head">
+    <div><h2>📋 Gerar Questionário</h2><p>Gere instrumentos de coleta de dados automaticamente.</p></div>
+    <button class="close" onclick="closeDialog('questionnaireDialog')">&times;</button>
+  </div>
+  <div class="form">
+    <div class="field full"><label>Instruções adicionais (opcional)</label><textarea id="questionnairePrompt" rows="3" placeholder="Ex: Questionário sobre hábitos alimentares de estudantes universitários..."></textarea></div>
+    <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('questionnaireDialog')">Cancelar</button><button type="button" class="btn btn-primary" onclick="doGenerateQuestionnaire()">📋 Gerar Questionário</button></div>
   </div>
 </dialog>
 

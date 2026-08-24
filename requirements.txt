@@ -4,3 +4,5 @@ libsql-experimental
 requests
 bleach
 python-docx
+PyPDF2
+openpyxl
