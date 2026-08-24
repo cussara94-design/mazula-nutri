@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NutriAgenda</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="brand-mark">N</div><div>NutriAgenda<small>gestao do consultorio</small></div></div>
+      <nav class="nav" aria-label="Navegacao principal">
+        <button class="active" data-view="dashboard"><span class="nav-icon">&#8962;</span><span class="nav-label">Visao geral</span></button>
+        <button data-view="patients"><span class="nav-icon">&#9823;</span><span class="nav-label">Pacientes</span></button>
+        <button data-view="schedule"><span class="nav-icon">&#9632;</span><span class="nav-label">Agenda</span></button>
+        <button data-view="plans"><span class="nav-icon">&#9784;</span><span class="nav-label">Planos alimentares</span></button>
+        <button data-view="evolution"><span class="nav-icon">&#8599;</span><span class="nav-label">Evolucao</span></button>
+        <button data-view="assessment"><span class="nav-icon">&#8963;</span><span class="nav-label">Avaliacao</span></button>
+        <button data-view="diagnostico"><span class="nav-icon">&#9881;</span><span class="nav-label">Diagnostico</span></button>
+      </nav>
+      <div class="professional"><div class="avatar" id="userAvatar">N</div><div><strong id="userName">Nutricionista</strong><span id="userCrn">CRN ---</span></div></div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div><button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button><p class="eyebrow">Seu consultorio</p><h1 id="pageTitle">Ola, nutricionista</h1><p class="date" id="todayText"></p></div>
+        <div class="actions"><button class="btn" onclick="openAssessmentDialog()"><i class="fas fa-clipboard-check"></i> Avaliacao</button><button class="btn" onclick="openAppointmentDialog()"><i class="fas fa-calendar-plus"></i> Consulta</button><button class="btn btn-primary" onclick="openPatientDialog()"><i class="fas fa-user-plus"></i> Paciente</button><button class="btn btn-ghost" onclick="doLogout()" title="Sair"><i class="fas fa-sign-out-alt"></i></button></div>
+      </header>
+
+      <div class="loading-overlay" id="loading" style="display:none"><div class="spinner"></div><p>A carregar...</p></div>
+
+      <main class="content">
+        <section class="view active" id="dashboard"></section>
+        <section class="view" id="patients" style="display:none"></section>
+        <section class="view" id="schedule" style="display:none"></section>
+        <section class="view" id="plans" style="display:none"></section>
+        <section class="view" id="evolution" style="display:none"></section>
+        <section class="view" id="assessment" style="display:none"></section>
+        <section class="view" id="diagnostico" style="display:none"></section>
+      </main>
+    </main>
+  </div>
+
+  <dialog id="patientDialog"><form method="dialog" id="patientForm"><div class="modal-head"><div><h2>Novo paciente</h2><p>Cadastre os dados iniciais do prontuario.</p></div><button class="close" value="cancel" aria-label="Fechar">&times;</button></div><div class="form"><div class="form-grid"><div class="field full"><label for="pName">Nome completo *</label><input id="pName" required placeholder="Ex.: Mariana Costa"></div><div class="field"><label for="pBirth">Data de nascimento</label><input id="pBirth" type="date"></div><div class="field"><label for="pPhone">Telefone</label><input id="pPhone" type="tel" placeholder="(00) 00000-0000"></div><div class="field"><label for="pGoal">Objetivo principal *</label><select id="pGoal" required><option value="">Selecione</option><option>Emagrecimento saudavel</option><option>Ganho de massa muscular</option><option>Reeducacao alimentar</option><option>Nutricao clinica</option><option>Nutricao esportiva</option></select></div><div class="field"><label for="pWeight">Peso inicial (kg)</label><input id="pWeight" type="number" step="0.1" min="0" placeholder="Ex.: 68,5"></div><div class="field full"><label for="pNotes">Observacoes iniciais</label><textarea id="pNotes" placeholder="Queixas, historico, restricoes..."></textarea></div></div></div><div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Salvar paciente</button></div></form></dialog>
+
+  <dialog id="appointmentDialog"><form method="dialog" id="appointmentForm"><div class="modal-head"><div><h2>Nova consulta</h2><p>Inclua um atendimento na agenda.</p></div><button class="close" value="cancel" aria-label="Fechar">&times;</button></div><div class="form"><div class="form-grid"><div class="field full"><label for="aPatient">Paciente *</label><select id="aPatient" required></select></div><div class="field"><label for="aDate">Data *</label><input id="aDate" type="date" required></div><div class="field"><label for="aTime">Horario *</label><input id="aTime" type="time" required></div><div class="field"><label for="aType">Tipo</label><select id="aType"><option>Consulta inicial</option><option>Retorno</option><option>Avaliacao corporal</option><option>Consulta online</option></select></div><div class="field"><label for="aStatus">Status</label><select id="aStatus"><option value="confirmed">Confirmada</option><option value="scheduled">A confirmar</option></select></div></div></div><div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Agendar consulta</button></div></form></dialog>
+
+  <dialog id="detailDialog"><div class="modal-head"><div><h2>Prontuario do paciente</h2><p>Visao clinica resumida.</p></div><button class="close" id="closeDetail" aria-label="Fechar">&times;</button></div><div class="detail" id="patientDetail"></div></dialog>
+
+  <dialog id="assessmentDialog"><form method="dialog" id="assessmentForm"><div class="modal-head"><div><h2>Nova avaliacao nutricional</h2><p>Insira medidas, registre o diagnostico e a conduta clinica.</p></div><button class="close" value="cancel" aria-label="Fechar">&times;</button></div><div class="form"><div class="form-grid"><div class="field full"><label for="asPatient">Paciente *</label><select id="asPatient" required></select></div><div class="field"><label for="asDate">Data da avaliacao *</label><input id="asDate" type="date" required></div><div class="field"><label for="asWeight">Peso atual (kg) *</label><input id="asWeight" type="number" min="1" step="0.1" required placeholder="Ex.: 68,5"></div><div class="field"><label for="asHeight">Altura (cm) *</label><input id="asHeight" type="number" min="50" max="250" step="0.1" required placeholder="Ex.: 165"></div><div class="field"><label for="asWaist">Circunferencia da cintura (cm)</label><input id="asWaist" type="number" min="0" step="0.1" placeholder="Opcional"></div><div class="field"><label for="asBodyFat">Gordura corporal (%)</label><input id="asBodyFat" type="number" min="0" max="100" step="0.1" placeholder="Opcional"></div><div class="field full"><label>Indicador calculado</label><div class="tip" id="bmiPreview" aria-live="polite">Informe peso e altura para calcular o IMC.</div></div><div class="field full"><label for="asDiagnosis">Diagnostico nutricional *</label><textarea id="asDiagnosis" required placeholder="Ex.: Excesso de peso com baixa ingestao de fibras;"></textarea></div><div class="field full"><label for="asConduct">Conduta e orientacoes</label><textarea id="asConduct" placeholder="Ex.: ajustar fracionamento, incluir 2 porcoes de frutas/dia;"></textarea></div><div class="field full"><label for="asNotes">Observacoes complementares</label><textarea id="asNotes" placeholder="Exames, sintomas, preferencias..."></textarea></div></div></div><div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Salvar avaliacao</button></div></form></dialog>
+
+  <dialog id="evolutionDialog"><form method="dialog" id="evolutionForm"><div class="modal-head"><div><h2>Nova evolucao</h2><p>Registre uma nota de acompanhamento.</p></div><button class="close" value="cancel" aria-label="Fechar">&times;</button></div><div class="form"><div class="form-grid"><div class="field full"><label for="ePatient">Paciente *</label><select id="ePatient" required></select></div><div class="field"><label for="eDate">Data *</label><input id="eDate" type="date" required></div><div class="field"><label for="eChange">Variacao de peso (kg)</label><input id="eChange" type="number" step="0.1" placeholder="Ex.: -1.2"></div><div class="field full"><label for="eText">Descricao *</label><textarea id="eText" required placeholder="Descreva a evolucao do paciente..."></textarea></div></div></div><div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Salvar evolucao</button></div></form></dialog>
+
+  <dialog id="diagnosticoDialog"><form method="dialog" id="diagnosticoForm"><div class="modal-head"><div><h2>Diagnostico Nutricional Inteligente</h2><p>Insira dados antropometricos e seleccione os sintomas para analise.</p></div><button class="close" value="cancel" aria-label="Fechar">&times;</button></div><div class="form"><div class="form-grid"><div class="field"><label for="dPeso">Peso (kg) *</label><input id="dPeso" type="number" step="0.1" min="1" required placeholder="Ex.: 68.5"></div><div class="field"><label for="dAltura">Altura (cm) *</label><input id="dAltura" type="number" step="0.1" min="50" max="250" required placeholder="Ex.: 165"></div><div class="field"><label for="dCintura">Cintura (cm)</label><input id="dCintura" type="number" step="0.1" placeholder="Opcional"></div><div class="field"><label for="dGordura">Gordura corporal (%)</label><input id="dGordura" type="number" step="0.1" placeholder="Opcional"></div><div class="field"><label for="dIdade">Idade</label><input id="dIdade" type="number" min="0" max="120" placeholder="Ex.: 35"></div><div class="field"><label for="dSexo">Sexo</label><select id="dSexo"><option value="M">Masculino</option><option value="F">Feminino</option></select></div><div class="field full"><label>IMC calculado</label><div class="tip" id="dImcPreview">Informe peso e altura.</div></div><div class="field full"><label>Sintomas apresentados</label><div class="sintomas-grid" id="sintomasGrid"></div></div></div></div><div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Analisar</button></div></form></dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

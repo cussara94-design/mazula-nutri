@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NutriAgenda — Entrar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-body">
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-mark">N</div>
+        <h1>NutriAgenda</h1>
+        <p>Gestao do consultorio nutricional</p>
+      </div>
+      <div class="login-tabs">
+        <button class="login-tab active" data-tab="login">Entrar</button>
+        <button class="login-tab" data-tab="register">Registar</button>
+      </div>
+      <form id="loginForm" class="login-form">
+        <div class="field"><label for="lEmail">Email</label><input id="lEmail" type="email" required placeholder="seu@email.com"></div>
+        <div class="field"><label for="lPass">Senha</label><input id="lPass" type="password" required placeholder="Sua senha"></div>
+        <div class="login-error" id="loginError"></div>
+        <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+      </form>
+      <form id="registerForm" class="login-form" style="display:none">
+        <div class="field"><label for="rName">Nome completo</label><input id="rName" required placeholder="Seu nome"></div>
+        <div class="field"><label for="rEmail">Email</label><input id="rEmail" type="email" required placeholder="seu@email.com"></div>
+        <div class="field"><label for="rPass">Senha</label><input id="rPass" type="password" required minlength="6" placeholder="Minimo 6 caracteres"></div>
+        <div class="field"><label for="rCrn">CRN (opcional)</label><input id="rCrn" placeholder="00000"></div>
+        <div class="login-error" id="registerError"></div>
+        <button class="btn btn-primary btn-block" type="submit">Criar conta</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    document.querySelectorAll('.login-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const isLogin = tab.dataset.tab === 'login';
+        document.getElementById('loginForm').style.display = isLogin ? '' : 'none';
+        document.getElementById('registerForm').style.display = isLogin ? 'none' : '';
+      });
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const errEl = document.getElementById('loginError');
+      errEl.textContent = '';
+      try {
+        const r = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            email: document.getElementById('lEmail').value,
+            password: document.getElementById('lPass').value
+          })
+        });
+        const data = await r.json();
+        if (!r.ok) { errEl.textContent = data.error || 'Erro ao entrar'; return; }
+        window.location.href = '/';
+      } catch(err) { errEl.textContent = 'Erro de conexao'; }
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const errEl = document.getElementById('registerError');
+      errEl.textContent = '';
+      try {
+        const r = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            name: document.getElementById('rName').value,
+            email: document.getElementById('rEmail').value,
+            password: document.getElementById('rPass').value,
+            crn: document.getElementById('rCrn').value
+          })
+        });
+        const data = await r.json();
+        if (!r.ok) { errEl.textContent = data.error || 'Erro ao registar'; return; }
+        window.location.href = '/';
+      } catch(err) { errEl.textContent = 'Erro de conexao'; }
+    });
+  </script>
+</body>
+</html>
