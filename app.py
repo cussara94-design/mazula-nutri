@@ -2,6 +2,7 @@ import os
 import json
 import re
 import requests
+import bleach
 from datetime import datetime
 from functools import wraps
 
@@ -267,6 +268,17 @@ def json_body():
     return data if isinstance(data, dict) else {}
 
 
+ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'u', 'h3', 'h4', 'blockquote', 'ul', 'ol', 'li', 'a', 'span']
+ALLOWED_ATTRS = {'a': ['href', 'target'], 'span': ['style']}
+
+
+def sanitize_html(text):
+    if not text:
+        return ""
+    clean = bleach.clean(text, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS, strip=True)
+    return clean
+
+
 def fetch_owned(table, row_id, user_id):
     db = get_db()
     return db.execute(
@@ -278,16 +290,14 @@ def fetch_owned(table, row_id, user_id):
 def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
+        uid = session.get("user_id")
+        if uid is None:
+            return jsonify({"error": "Sessao expirada. Faca login novamente."}), 401
         db = get_db()
-        user = db.execute("SELECT id FROM users LIMIT 1").fetchone()
+        user = db.execute("SELECT id FROM users WHERE id = ?", (uid,)).fetchone()
         if user is None:
-            db.execute(
-                "INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)",
-                ("Academico", "admin@trabalhofacil.com", generate_password_hash("123456"), now_str()),
-            )
-            db.commit()
-            user = db.execute("SELECT id FROM users LIMIT 1").fetchone()
-        session["user_id"] = user["id"]
+            session.clear()
+            return jsonify({"error": "Usuario nao encontrado."}), 401
         return view(*args, **kwargs)
     return wrapped_view
 
@@ -500,6 +510,9 @@ def works_get(work_id):
     work["references"] = rows_to_list(
         db.execute("SELECT * FROM references_ WHERE work_id = ? ORDER BY authors", (work_id,)).fetchall()
     )
+    work["chat_history"] = rows_to_list(
+        db.execute("SELECT * FROM chat_history WHERE work_id = ? ORDER BY id", (work_id,)).fetchall()
+    )
     total_words = 0
     for s in work["sections"]:
         content = s.get("content") or ""
@@ -549,6 +562,46 @@ def works_delete(work_id):
     return jsonify({"message": "Trabalho excluido."})
 
 
+@app.route("/api/works/<int:work_id>/sections", methods=["POST"])
+@login_required
+def section_create(work_id):
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", work_id, uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    data = json_body()
+    title = (data.get("title") or "Nova Secao").strip()
+    content = sanitize_html(data.get("content") or "")
+    max_idx = db.execute("SELECT COALESCE(MAX(order_index), -1) as mx FROM sections WHERE work_id = ?", (work_id,)).fetchone()["mx"]
+    now = now_str()
+    cur = db.execute(
+        "INSERT INTO sections (work_id, title, content, order_index, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (work_id, title, content, max_idx + 1, now, now),
+    )
+    db.execute("UPDATE works SET updated_at = ? WHERE id = ?", (now, work_id))
+    db.commit()
+    row = db.execute("SELECT * FROM sections WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return jsonify({"section": row_to_dict(row)}), 201
+
+
+@app.route("/api/works/<int:work_id>/sections/<int:section_id>", methods=["DELETE"])
+@login_required
+def section_delete(work_id, section_id):
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", work_id, uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    sec = db.execute("SELECT id FROM sections WHERE id = ? AND work_id = ?", (section_id, work_id)).fetchone()
+    if sec is None:
+        return jsonify({"error": "Secao nao encontrada."}), 404
+    db.execute("DELETE FROM sections WHERE id = ?", (section_id,))
+    db.execute("UPDATE works SET updated_at = ? WHERE id = ?", (now_str(), work_id))
+    db.commit()
+    return jsonify({"message": "Secao excluida."})
+
+
 @app.route("/api/works/<int:work_id>/sections/<int:section_id>", methods=["PUT"])
 @login_required
 def section_update(work_id, section_id):
@@ -562,7 +615,7 @@ def section_update(work_id, section_id):
     title = data.get("title")
     updates = {"updated_at": now_str()}
     if content is not None:
-        updates["content"] = content
+        updates["content"] = sanitize_html(content)
     if title is not None:
         updates["title"] = title
     set_sql = ", ".join('"{}" = ?'.format(c) for c in updates)
@@ -1120,6 +1173,12 @@ def api_refs_create():
 def api_refs_delete(ref_id):
     uid = session["user_id"]
     db = get_db()
+    ref = db.execute(
+        "SELECT r.id FROM references_ r JOIN works w ON r.work_id = w.id WHERE r.id = ? AND w.user_id = ?",
+        (ref_id, uid)
+    ).fetchone()
+    if ref is None:
+        return jsonify({"error": "Referencia nao encontrada."}), 404
     db.execute("DELETE FROM references_ WHERE id = ?", (ref_id,))
     db.commit()
     return jsonify({"message": "Referencia removida."})

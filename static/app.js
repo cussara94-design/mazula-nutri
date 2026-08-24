@@ -181,7 +181,7 @@ function renderSections(){
         <div class="toolbar-sep"></div>
         <button onclick="execCmd('formatBlock',${i},'blockquote')" title="Citação">❝</button>
       </div>
-      <div class="rich-editor" id="ed${i}" contenteditable="true" spellcheck="true" data-section="${i}" placeholder="Escreva ou gere conteúdo para esta secção...">${s.content||''}</div>
+      <div class="rich-editor" id="ed${i}" contenteditable="true" spellcheck="true" data-section="${i}" placeholder="Escreva ou gere conteúdo para esta secção...">${sanitizeContent(s.content||'')}</div>
       <div class="section-footer"><span class="word-count-badge" id="wc${i}">${fmtNum(wc)} palavras</span></div>
     </div>`;
   }).join('');
@@ -189,7 +189,7 @@ function renderSections(){
     const ed=document.getElementById('ed'+i);if(!ed)return;
     ed.addEventListener('input',()=>{
       s.content=ed.innerHTML;
-      const wc=ed.textContent.split(/\s+/).filter(Boolean).length;s.word_count=wc;
+      const wc=ed.textContent.split(/\s+/).filter(Boolean).length;s.word_count=wc;s._dirty=true;
       const wb=document.getElementById('wc'+i);if(wb)wb.textContent=fmtNum(wc)+' palavras';
       updateProgress();S.dirty=true;
       clearTimeout(ed._debounce);ed._debounce=setTimeout(()=>{if(S.dirty)doAutoSave()},2000);
@@ -225,20 +225,32 @@ function updateProgress(){
 /* ── Section CRUD ── */
 async function addSection(){
   const w=S.currentWork;if(!w){toast('Abra um trabalho primeiro');return}
-  const secs=w.sections||[];
-  const newSec={title:'Nova Secção '+(secs.length+1),content:'',word_count:0};
-  secs.push(newSec);w.sections=secs;
-  renderSections();
-  toast('Secção adicionada. Escreva ou gere conteúdo com IA.');
-  await doAutoSave();
+  showLoading('A adicionar secção...');
+  try{
+    const r=await fetch('/api/works/'+w.id+'/sections',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title:'Nova Secção '+((w.sections||[]).length+1),content:''})
+    });
+    const d=await r.json();
+    if(d.section){
+      w.sections=w.sections||[];w.sections.push(d.section);
+      renderSections();updateProgress();
+      toast('Secção adicionada!');
+    }else{toast('Erro: '+JSON.stringify(d))}
+  }catch(e){toast('Erro: '+e.message)}
+  hideLoading();
 }
 
 async function deleteSection(i){
   const w=S.currentWork;if(!w)return;
+  const sec=(w.sections||[])[i];if(!sec)return;
   if(!confirm('Apagar esta secção?'))return;
-  (w.sections||[]).splice(i,1);renderSections();
-  toast('Secção apagada.');
-  await doAutoSave();
+  showLoading('A apagar secção...');
+  try{
+    await fetch('/api/works/'+w.id+'/sections/'+sec.id,{method:'DELETE'});
+    (w.sections||[]).splice(i,1);renderSections();updateProgress();
+    toast('Secção apagada.');
+  }catch(e){toast('Erro: '+e.message)}
+  hideLoading();
 }
 
 async function generateSection(i){
@@ -264,19 +276,26 @@ async function generateSection(i){
 /* ── Auto Save ── */
 async function doAutoSave(){
   const w=S.currentWork;if(!w)return;
+  const statusEl=document.getElementById('saveStatus');
+  if(statusEl){statusEl.textContent='A guardar...';statusEl.className='save-status saving'}
   try{
     await fetch('/api/works/'+w.id,{method:'PUT',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({word_count:w.word_count,status:w.status})
     });
     for(const s of(w.sections||[])){
-      if(s.id){
+      if(s.id&&s._dirty){
         await fetch('/api/works/'+w.id+'/sections/'+s.id,{method:'PUT',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({content:s.content,title:s.title})
         });
+        s._dirty=false;
       }
     }
     S.dirty=false;
-  }catch(e){console.error('Save failed:',e)}
+    if(statusEl){statusEl.textContent='Guardado ✓';statusEl.className='save-status'}
+  }catch(e){
+    console.error('Save failed:',e);
+    if(statusEl){statusEl.textContent='Erro ao guardar';statusEl.className='save-status error'}
+  }
 }
 
 /* ── Works List (sidebar navigate) ── */
@@ -456,6 +475,18 @@ function showDialog(id){const d=document.getElementById(id);if(d&&d.showModal)d.
 function closeDialog(id){const d=document.getElementById(id);if(d&&d.close)d.close()}
 function gv(id){return(document.getElementById(id)?.value||'').trim()}
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+function sanitizeContent(html){
+  if(!html)return'';
+  const tmp=document.createElement('div');tmp.innerHTML=html;
+  tmp.querySelectorAll('script,iframe,object,embed,form,input,button,select,textarea,style,link').forEach(el=>el.remove());
+  tmp.querySelectorAll('*').forEach(el=>{
+    [...el.attributes].forEach(attr=>{
+      if(attr.name.startsWith('on')||attr.value.includes('javascript:'))el.removeAttribute(attr.name);
+    });
+  });
+  return tmp.innerHTML;
+}
 function fmtNum(n){return(n||0).toLocaleString('pt-MZ')}
 function fmtDate(s){if(!s)return'';try{return new Date(s).toLocaleDateString('pt-MZ',{day:'2-digit',month:'short',year:'numeric'})}catch(e){return s}}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3000)}

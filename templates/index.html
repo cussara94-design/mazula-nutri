@@ -245,6 +245,7 @@
   <div class="app">
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
+      <button class="menu-close" onclick="document.getElementById('sidebar').classList.remove('open')" aria-label="Fechar menu">✕</button>
       <div class="brand"><div class="brand-mark">C</div><div>Cussara<small>Academic</small></div></div>
       <nav class="nav" id="sidebarNav">
         <button data-view="dashboard" class="active"><span class="nav-icon">🏠</span><span class="nav-label">Painel</span></button>
@@ -261,6 +262,7 @@
 
     <!-- Main Content -->
     <main class="content">
+      <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')" aria-label="Abrir menu">☰</button>
       <!-- ── Dashboard ── -->
       <section id="dashboardView" class="view active">
         <div class="hero">
@@ -320,6 +322,7 @@
               <span class="chip rascunho" id="editorStatus">Rascunho</span>
             </div>
             <div class="editor-actions">
+              <span class="save-status" id="saveStatus">Guardado ✓</span>
               <button class="btn btn-sm" onclick="doAutoSave()" title="Guardar agora">💾 Guardar</button>
               <button class="btn btn-sm" onclick="exportWork()" title="Exportar">📥 Exportar Word</button>
               <button class="btn btn-sm btn-outline" onclick="openDoiDialog()" title="Importar referências">📥 DOI / ISBN</button>
