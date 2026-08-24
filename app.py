@@ -413,11 +413,89 @@ def calc_diagnosticos(data):
     return resultados
 
 
+class _TursoRow:
+    __slots__ = ("_data", "_cols")
+    def __init__(self, data, cols):
+        object.__setattr__(self, "_data", data)
+        object.__setattr__(self, "_cols", cols)
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._data[key]
+        idx = self._cols.index(key)
+        return self._data[idx]
+    def __contains__(self, key):
+        return key in self._cols
+    def keys(self):
+        return self._cols
+    def __iter__(self):
+        return iter(self._data)
+    def __len__(self):
+        return len(self._data)
+
+
+class _TursoCursor:
+    def __init__(self, cursor):
+        self._cur = cursor
+        self._cols = []
+        if hasattr(cursor, "description") and cursor.description:
+            self._cols = [d[0] for d in cursor.description]
+
+    @property
+    def lastrowid(self):
+        return self._cur.lastrowid
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+    def _wrap_row(self, row):
+        if row is None or not self._cols:
+            return row
+        return _TursoRow(row, self._cols)
+
+    def fetchone(self):
+        r = self._cur.fetchone()
+        return self._wrap_row(r) if r else None
+
+    def fetchall(self):
+        return [self._wrap_row(r) for r in self._cur.fetchall()]
+
+
+class _TursoConn:
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=None):
+        if params:
+            cur = self._conn.execute(sql, params)
+        else:
+            cur = self._conn.execute(sql)
+        cols = []
+        if hasattr(cur, "description") and cur.description:
+            cols = [d[0] for d in cur.description]
+        tc = _TursoCursor(cur)
+        tc._cols = cols
+        return tc
+
+    def executescript(self, sql):
+        for stmt in sql.split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                self.execute(stmt)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
 def get_db():
     if "db" not in g:
         if TURSO_URL:
             import libsql_experimental as libsql
-            g.db = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+            raw = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+            g.db = _TursoConn(raw)
         else:
             import sqlite3 as _sqlite3
             conn = _sqlite3.connect(DATABASE_PATH)
