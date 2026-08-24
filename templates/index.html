@@ -1,118 +1,460 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cussara Academic</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cussara Academic — Monografia e TCC com IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js"></script>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect rx='20' width='100' height='100' fill='%237C5CFF'/><text x='50' y='66' text-anchor='middle' font-size='52' font-family='sans-serif' font-weight='900' fill='white'>C</text></svg>">
 </head>
 <body>
+
+<!-- ════════════ LANDING PAGE ════════════ -->
+<div id="landing" class="view active">
+  <nav class="lp-nav">
+    <div class="lp-nav-inner">
+      <div class="brand"><div class="brand-mark">C</div><div>Cussara<small>Academic</small></div></div>
+      <div class="lp-nav-links"><a href="#features">Funcionalidades</a><a href="#compare">Comparação</a><a href="#pricing">Planos</a></div>
+      <button class="btn btn-primary btn-sm" onclick="showView('login')">Entrar</button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="lp-hero">
+    <div class="lp-hero-inner">
+      <span class="lp-badge">Novo em Moçambique</span>
+      <h1>A tua Monografia escreve-se<br><em>sozinha.</em></h1>
+      <p>Tu só tens de defender em no máximo 21 dias. Define o Tema. Organiza a Estrutura. Cussara Academic gera texto de cada capítulo com <strong>citações de artigos reais em APA 7ª ou ABNT</strong>. Gera Instrumento de Colecta de Dados. Analisa os Dados e Exporta em Word <strong>pronto para o Supervisor ler amanhã.</strong></p>
+      <div class="lp-hero-btns">
+        <button class="btn btn-primary" onclick="showView('register')">Gerar o meu primeiro capítulo</button>
+        <button class="btn" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.25);color:#fff" onclick="showView('login')">Já tenho conta</button>
+      </div>
+      <div class="lp-hero-avatars">
+        <div class="lp-avatar-stack">
+          <img src="https://ui-avatars.com/api/?name=M+J&background=7C5CFF&color=fff" alt="">
+          <img src="https://ui-avatars.com/api/?name=C+M&background=00E5A0&color=000" alt="">
+          <img src="https://ui-avatars.com/api/?name=A+S&background=FFD60A&color=000" alt="">
+        </div>
+        <span>★★★★★</span>
+        <span class="lp-hero-stat-text">523 estudantes geraram capítulos esta semana</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="lp-section" id="features">
+    <div class="lp-section-inner">
+      <h2>Cada capítulo que abres,<br><em>sai escrito.</em></h2>
+      <p class="lp-sub">Não há página em branco aqui. Abres o capítulo, defines os tópicos — o Cussara Academic escreve.</p>
+      <div class="lp-features-grid">
+        <div class="lp-feature-card">
+          <div class="lp-feature-num">01</div>
+          <h3>Abre o capítulo. Ele escreve.</h3>
+          <p>Cap. I ao V — cada um gerado com citações de artigos reais. Sem rascunho. Sem bloqueio.</p>
+        </div>
+        <div class="lp-feature-card">
+          <div class="lp-feature-num">02</div>
+          <h3>Instrumentos e dados incluídos.</h3>
+          <p>Questionário gerado automaticamente. Dados analisados. Tabelas em APA ou ABNT prontas.</p>
+        </div>
+        <div class="lp-feature-card">
+          <div class="lp-feature-num">03</div>
+          <h3>Exportas. O supervisor lê.</h3>
+          <p>Word formatado, referências completas. Pronto para entregar — quando tu quiseres.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Math -->
+  <section class="lp-section lp-dark" id="math">
+    <div class="lp-section-inner">
+      <span class="lp-badge">Para cursos de exatas</span>
+      <h2>Fórmulas que saem certas.</h2>
+      <p class="lp-sub">Matemática, física e química — escritas em notação real, exportadas como equação editável no Word.</p>
+      <div class="lp-math-grid">
+        <div class="lp-math-card">
+          <div class="lp-math-icon">∑</div>
+          <h3>Matemática</h3>
+          <p>Frações, integrais, derivadas, matrizes — notação LaTeX completa.</p>
+        </div>
+        <div class="lp-math-card">
+          <div class="lp-math-icon">⚡</div>
+          <h3>Física</h3>
+          <p>Mecânica, eletromagnetismo, unidades e notação científica.</p>
+        </div>
+        <div class="lp-math-card">
+          <div class="lp-math-icon">⚗</div>
+          <h3>Química</h3>
+          <p>Moléculas, cargas iónicas e reações químicas com seta.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Compare -->
+  <section class="lp-section" id="compare">
+    <div class="lp-section-inner">
+      <h2>Vê o que é diferente aqui.</h2>
+      <p class="lp-sub">ChatGPT inventa citações. Cussara Academic usa fontes reais.</p>
+      <table class="lp-table">
+        <thead><tr><th>Critério</th><th>ChatGPT gratuito</th><th>Cussara Academic</th></tr></thead>
+        <tbody>
+          <tr><td>Citações verificáveis</td><td class="lp-no">Inventa autores</td><td class="lp-yes">R.A.G. com fontes reais</td></tr>
+          <tr><td>Formatação APA 7ª / ABNT</td><td class="lp-no">Manual e inconsistente</td><td class="lp-yes">Automática</td></tr>
+          <tr><td>Coerência entre capítulos</td><td class="lp-no">Perde contexto</td><td class="lp-yes">Memória do projeto inteiro</td></tr>
+          <tr><td>Análise estatística</td><td class="lp-no">Sem dados reais</td><td class="lp-yes">Excel/CSV → tabelas APA/ABNT</td></tr>
+          <tr><td>Fórmulas matemáticas</td><td class="lp-no">Copiar/colar quebrado</td><td class="lp-yes">Equação nativa, editável</td></tr>
+          <tr><td>Gerador de instrumentos</td><td class="lp-no">Genérico</td><td class="lp-yes">Baseado no Cap. III</td></tr>
+          <tr><td>Anti-plágio</td><td class="lp-no">Texto detectável</td><td class="lp-yes">Estrutural e único</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="lp-section lp-pricing-bg" id="pricing">
+    <div class="lp-section-inner">
+      <span class="lp-badge">Comece agora</span>
+      <h2>Monografia pronta com citações verificáveis</h2>
+      <p class="lp-sub">Escolha seu plano. Pagamento por M-Pesa.</p>
+      <div class="lp-pricing-grid">
+        <div class="lp-price-card">
+          <div class="lp-price-tag">Pro</div>
+          <div class="lp-price-amount">MZN 4.497</div>
+          <div class="lp-price-period">válido por 365 dias</div>
+          <ul>
+            <li><strong>2 trabalhos</strong></li>
+            <li>Escrita de capítulos com citações reais</li>
+            <li>Importar até 40 Artigos Científicos</li>
+            <li>Formatação APA 7ª ou ABNT automática</li>
+            <li>Exportar Word e PDF</li>
+            <li>Análise de Dados</li>
+            <li>Gerador de Instrumentos</li>
+            <li>Suporte WhatsApp + Meeting</li>
+          </ul>
+          <button class="btn btn-primary" onclick="showView('register')" style="width:100%;justify-content:center">Começar agora</button>
+        </div>
+        <div class="lp-price-card lp-price-featured">
+          <div class="lp-price-badge">Mais Popular</div>
+          <div class="lp-price-tag">Premium</div>
+          <div class="lp-price-amount">MZN 9.497</div>
+          <div class="lp-price-period">válido por 365 dias</div>
+          <ul>
+            <li><strong>Tudo do plano Pro +</strong></li>
+            <li>Revisão Humana — os nossos olhos antes do supervisor</li>
+            <li>Slides Profissionais — júri impressionado</li>
+            <li>Simulação de Defesa — sem surpresas</li>
+            <li>Garantia de Revisão — reprovado? Reescrevemos 1×</li>
+          </ul>
+          <button class="btn btn-primary" onclick="showView('register')" style="width:100%;justify-content:center">Quero a Aprovação Garantida</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section class="lp-section" id="testimonials">
+    <div class="lp-section-inner">
+      <h2>Estudantes que já defenderam</h2>
+      <div class="lp-testimonials-grid">
+        <div class="lp-testimonial"><div class="lp-testimonial-avatar"><img src="https://ui-avatars.com/api/?name=F+M&background=7C5CFF&color=fff" alt=""></div><p>"Em 14 dias tinha o capítulo III pronto com citações reais. O orientador aprovou sem observações."</p><strong>Fátima M.</strong><small>UEM — Administração</small></div>
+        <div class="lp-testimonial"><div class="lp-testimonial-avatar"><img src="https://ui-avatars.com/api/?name=R+C&background=00E5A0&color=000" alt=""></div><p>"Não sabia como começar. O Cussara Academic organizou tudo — do tema à defesa. Defendi com 18 valores."</p><strong>Ricardo C.</strong><small>ISCED — Direito</small></div>
+        <div class="lp-testimonial"><div class="lp-testimonial-avatar"><img src="https://ui-avatars.com/api/?name=A+T&background=FFD60A&color=000" alt=""></div><p>"As tabelas em APA ficaram perfeitas. O professor achou que tinha contratado um revisor profissional."</p><strong>Ana T.</strong><small>UniRovuma — Enfermagem</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="lp-section lp-dark" id="faq">
+    <div class="lp-section-inner">
+      <h2>Perguntas frequentes</h2>
+      <div class="lp-faq-list">
+        <details class="lp-faq"><summary>Posso usar para qualquer tipo de TCC?</summary><p>Suporta monografias, artigos científicos, projetos práticos e dissertações. O foco é acelerar o desenvolvimento académico independente do formato.</p></details>
+        <details class="lp-faq"><summary>Como funciona com as referências?</summary><p>A plataforma usa tecnologia R.A.G. (Retrieval-Augmented Generation): a IA só escreve baseada em artigos reais que você carrega. Não inventa citações — garante 100% de integridade académica.</p></details>
+        <details class="lp-faq"><summary>Em quanto tempo posso terminar?</summary><p>Estudantes têm concluído trabalhos em tempos recordes. A metodologia reduz significativamente o ciclo de pesquisa e escrita.</p></details>
+        <details class="lp-faq"><summary>Estou com pouco tempo. Ainda dá?</summary><p>Sim. O Cussara Academic foi concebido para acelerar prazos apertados com estrutura guiada, modelos prontos e escrita assistida que respeita seu roteiro.</p></details>
+        <details class="lp-faq"><summary>Funciona em português?</summary><p>Sim. A plataforma é optimizada para o português moçambicano e gera conteúdo em português com referências internacionais.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="lp-section lp-cta">
+    <div class="lp-section-inner" style="text-align:center">
+      <h2>Pronto para terminar o teu TCC?</h2>
+      <p>Junte-se a <strong>+500 estudantes</strong> que já defenderam.</p>
+      <button class="btn btn-primary btn-lg" onclick="showView('register')" style="font-size:16px;padding:14px 28px">Ver planos e assinar</button>
+    </div>
+  </section>
+
+  <footer class="lp-footer"><div class="lp-footer-inner">© 2026 Cussara Academic · Todos os Direitos Reservados</div></footer>
+</div>
+
+<!-- ════════════ AUTH: LOGIN ════════════ -->
+<div id="login" class="view">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div style="text-align:center;margin-bottom:20px">
+        <div class="brand" style="justify-content:center;margin-bottom:16px"><div class="brand-mark">C</div><div>Cussara<small>Academic</small></div></div>
+        <h2 style="margin:0">Bem-vindo de volta</h2>
+        <p style="color:var(--muted);margin:6px 0 0">Entre na tua conta para continuar o teu trabalho.</p>
+      </div>
+      <form id="loginForm" class="auth-form">
+        <div class="field"><label>Email</label><input type="email" id="loginEmail" required placeholder="teu@email.com"></div>
+        <div class="field"><label>Senha</label><input type="password" id="loginPass" required placeholder="••••••••"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px">Entrar</button>
+      </form>
+      <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--muted)">
+        Ainda não tem conta? <a href="#" onclick="showView('register');return false" style="color:var(--primary);font-weight:700">Criar conta gratuita</a>
+      </div>
+      <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--muted)">
+        Ao continuar, aceita os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ AUTH: REGISTER ════════════ -->
+<div id="register" class="view">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div style="text-align:center;margin-bottom:20px">
+        <div class="brand" style="justify-content:center;margin-bottom:16px"><div class="brand-mark">C</div><div>Cussara<small>Academic</small></div></div>
+        <h2 style="margin:0">Criar conta gratuita</h2>
+        <p style="color:var(--muted);margin:6px 0 0">Comece a gerar o teu TCC agora.</p>
+      </div>
+      <form id="registerForm" class="auth-form">
+        <div class="field"><label>Nome</label><input type="text" id="regName" required placeholder="Teu nome"></div>
+        <div class="field"><label>Email</label><input type="email" id="regEmail" required placeholder="teu@email.com"></div>
+        <div class="field"><label>Senha</label><input type="password" id="regPass" required minlength="6" placeholder="Mínimo 6 caracteres"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px">Criar conta</button>
+      </form>
+      <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--muted)">
+        Já tem conta? <a href="#" onclick="showView('login');return false" style="color:var(--primary);font-weight:700">Entrar</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ APP ════════════ -->
+<div id="app" class="view">
   <div class="app">
+    <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="brand"><div class="brand-mark">C</div><div>Cussara<small>Academic</small></div></div>
-      <nav class="nav">
-        <button class="active" data-view="dashboard"><span class="nav-icon">&#8962;</span><span class="nav-label">Painel</span></button>
-        <button data-view="works"><span class="nav-icon">&#9998;</span><span class="nav-label">Trabalhos</span></button>
-        <button data-view="references"><span class="nav-icon">&#8220;</span><span class="nav-label">Referencias</span></button>
+      <nav class="nav" id="sidebarNav">
+        <button data-view="dashboard" class="active"><span class="nav-icon">🏠</span><span class="nav-label">Painel</span></button>
+        <button data-view="works"><span class="nav-icon">📄</span><span class="nav-label">Trabalhos</span></button>
+        <button data-view="refs"><span class="nav-icon">📚</span><span class="nav-label">Referências</span></button>
+        <button data-view="ai"><span class="nav-icon">🤖</span><span class="nav-label">IA Assistente</span></button>
       </nav>
-      <div class="user-box"><div class="avatar" id="userAvatar">A</div><div><strong id="userName">Academico</strong><span id="userEmail"></span></div></div>
+      <div class="user-box" id="userBox">
+        <div class="avatar">A</div>
+        <div><strong id="userName">Académico</strong><span id="userEmail">admin@trabalhofacil.com</span></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" style="justify-content:center;color:rgba(255,255,255,.4)">Sair</button>
     </aside>
 
-    <main>
-      <header class="topbar">
-        <div>
-          <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">&#9776;</button>
-          <h1 id="pageTitle">Cussara Academic</h1>
-          <p class="subtitle" id="pageSubtitle">Gere trabalhos academicos com IA</p>
+    <!-- Main Content -->
+    <main class="content">
+      <!-- ── Dashboard ── -->
+      <section id="dashboardView" class="view active">
+        <div class="hero">
+          <div class="hero-content">
+            <h2>Bem-vindo ao Cussara Academic</h2>
+            <p>Gera monografias, artigos e dissertações com IA, citações reais em APA 7ª ou ABNT, e exporta em Word pronto para o teu orientador.</p>
+            <button class="btn" onclick="showDialog('newWorkDialog')"><span>＋</span> Novo Trabalho</button>
+            <div class="hero-stats">
+              <div class="hero-stat"><span class="num" id="totalWorks">0</span><span class="label">Trabalhos</span></div>
+              <div class="hero-stat"><span class="num" id="totalWords">0</span><span class="label">Palavras Geradas</span></div>
+              <div class="hero-stat"><span class="num" id="totalRefs">0</span><span class="label">Referências</span></div>
+            </div>
+          </div>
         </div>
-        <div class="actions">
-          <button class="btn btn-primary" onclick="openNewWorkDialog()">+ Novo Trabalho</button>
-          <button class="btn btn-ghost" onclick="doLogout()" title="Sair">&#10140;</button>
+
+        <div class="metrics">
+          <div class="metric"><div class="metric-label">Trabalhos</div><div class="metric-value" id="dashWorks">0</div><div class="metric-note">Activos</div></div>
+          <div class="metric"><div class="metric-label">Total Palavras</div><div class="metric-value" id="dashWords">0</div><div class="metric-note">No total</div></div>
+          <div class="metric"><div class="metric-label">Referências</div><div class="metric-value" id="dashRefs">0</div><div class="metric-note">Salvas</div></div>
+          <div class="metric"><div class="metric-label">Sessões IA</div><div class="metric-value" id="dashChats">0</div><div class="metric-note">Conversas</div></div>
         </div>
-      </header>
 
-      <div class="loading-overlay" id="loading" style="display:none"><div class="spinner"></div><p>A processar...</p></div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Trabalhos Recentes</h2><button class="btn btn-sm" onclick="showView('works')">Ver Todos →</button></div>
+            <div id="dashRecentWorks"><div class="empty">Nenhum trabalho ainda. Clique em "Novo Trabalho" para começar.</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Como Começar</h2></div>
+            <div class="guide-steps">
+              <div class="guide-step"><div class="step-num">1</div><div><strong>Cria o Trabalho</strong><p>Define tema, tipo e nível académico.</p></div></div>
+              <div class="guide-step"><div class="step-num">2</div><div><strong>Importa Referências</strong><p>Importa artigos por DOI ou ISBN.</p></div></div>
+              <div class="guide-step"><div class="step-num">3</div><div><strong>Escreve com IA</strong><p>Gera capítulos com citações reais APA.</p></div></div>
+              <div class="guide-step"><div class="step-num">4</div><div><strong>Exporta em Word</strong><p>Download formatado pronto para entregar.</p></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <section class="content">
-        <div class="view active" id="dashboard"></div>
-        <div class="view" id="works" style="display:none"></div>
-        <div class="view" id="references" style="display:none"></div>
-        <div class="view" id="editor" style="display:none"></div>
+      <!-- ── Works ── -->
+      <section id="worksView" class="view">
+        <div class="topbar">
+          <div><h1>Meus Trabalhos</h1><p class="subtitle">Gere e organize as suas monografias e trabalhos académicos.</p></div>
+          <div class="actions"><button class="btn btn-primary" onclick="showDialog('newWorkDialog')"><span>＋</span> Novo Trabalho</button></div>
+        </div>
+        <div id="worksList"><div class="empty-state"><p>Nenhum trabalho criado ainda.</p><button class="btn btn-primary" onclick="showDialog('newWorkDialog')">＋ Criar Primeiro Trabalho</button></div></div>
+      </section>
+
+      <!-- ── Editor ── -->
+      <section id="editorView" class="view">
+        <div class="editor-top">
+          <div class="editor-top-left">
+            <button class="btn btn-ghost btn-sm" onclick="switchContent('works')" style="margin-bottom:10px">← Voltar</button>
+            <h1 id="editorTitle">Título do Trabalho</h1>
+            <div class="editor-meta">
+              <span class="work-type-badge" id="editorType">Monografia</span>
+              <span class="chip rascunho" id="editorStatus">Rascunho</span>
+            </div>
+            <div class="editor-actions">
+              <button class="btn btn-sm" onclick="doAutoSave()" title="Guardar agora">💾 Guardar</button>
+              <button class="btn btn-sm" onclick="exportWork()" title="Exportar">📥 Exportar Word</button>
+              <button class="btn btn-sm btn-outline" onclick="openDoiDialog()" title="Importar referências">📥 DOI / ISBN</button>
+              <button class="btn btn-sm" onclick="openChatDialog()" title="Chat IA">🤖 Chat IA</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteCurrentWork()" title="Apagar trabalho">🗑</button>
+            </div>
+          </div>
+          <div class="meta-cards">
+            <div class="meta-card"><strong>📖 Palavras</strong><p id="editorWordCount">0</p></div>
+            <div class="meta-card"><strong>📄 Secções</strong><p id="editorSectionCount">0</p></div>
+            <div class="meta-card"><strong>📚 Referências</strong><p id="editorRefCount">0</p></div>
+            <div class="meta-card"><strong>🎯 Meta</strong><p id="editorTarget">—</p></div>
+          </div>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar"><div class="progress-fill" id="editorProgress" style="width:0%"></div></div>
+          <div class="progress-text" id="editorProgressText">0%</div>
+        </div>
+
+        <div class="editor-body">
+          <div class="sections-panel">
+            <div class="section-head" style="margin-bottom:14px">
+              <h3>Secções do Trabalho</h3>
+              <button class="btn btn-sm btn-primary" onclick="addSection()">＋ Adicionar Secção</button>
+            </div>
+            <div id="sectionsContainer"></div>
+            <div id="sectionsEmpty" class="empty-state" style="display:none">
+              <p>Nenhuma secção ainda.</p>
+              <button class="btn btn-primary" onclick="addSection()">＋ Criar Primeira Secção</button>
+            </div>
+          </div>
+
+          <aside class="refs-sidebar">
+            <div class="refs-sidebar-header">
+              <h3>📚 Referências</h3>
+              <button class="btn btn-sm btn-outline" onclick="openDoiDialog()">+ DOI</button>
+            </div>
+            <div id="editorRefsList"><div class="empty">Nenhuma referência ainda.</div></div>
+            <div class="apa-preview" id="apaPreview" style="display:none">
+              <h4>Pré-visualização APA</h4>
+              <div class="apa-text" id="apaPreviewText"></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ── References ── -->
+      <section id="refsView" class="view">
+        <div class="topbar">
+          <div><h1>Referências Bibliográficas</h1><p class="subtitle">Artigos, livros e outras fontes com citação em APA 7ª.</p></div>
+          <div class="actions">
+            <button class="btn btn-outline" onclick="openDoiDialog()">📥 Importar DOI / ISBN</button>
+          </div>
+        </div>
+        <div class="ref-list" id="refsFullList"><div class="empty-state"><p>Nenhuma referência ainda.</p></div></div>
+      </section>
+
+      <!-- ── AI ── -->
+      <section id="aiView" class="view">
+        <div class="topbar">
+          <div><h1>Assistente IA</h1><p class="subtitle">Gere, resuma, expanda e corrija texto académico.</p></div>
+        </div>
+        <div class="panel" style="margin-bottom:20px">
+          <h3 style="margin:0 0 12px">Geração Rápida</h3>
+          <div class="ai-modes" id="aiModes"></div>
+          <div class="field" style="margin-top:12px"><textarea id="aiPrompt" rows="3" placeholder="Descreva o que deseja gerar, resumir, expandir ou traduzir..." style="border-radius:var(--radius-sm)"></textarea></div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <div class="field" style="flex:1;min-width:120px"><label>Idioma</label><select id="aiLang"><option value="Português">Português</option><option value="Inglês">English</option><option value="Francês">Français</option><option value="Espanhol">Español</option></select></div>
+            <div class="field" style="flex:0;min-width:120px"><label>Tom</label><select id="aiTone"><option value="Académico">Académico</option><option value="Formal">Formal</option><option value="Didáctico">Didáctico</option></select></div>
+          </div>
+          <div style="margin-top:14px"><button class="btn btn-primary" id="aiGenerateBtn" onclick="doAiRequest()">⚡ Gerar</button></div>
+          <div id="aiResult" style="display:none;margin-top:16px">
+            <div class="section-head" style="margin-bottom:8px"><h4 style="margin:0">Resultado</h4><div style="display:flex;gap:6px"><button class="btn btn-sm" onclick="copyAiResult()">📋 Copiar</button><button class="btn btn-sm btn-ghost" onclick="document.getElementById('aiResult').style.display='none'">✕</button></div></div>
+            <div id="aiResultText" style="padding:14px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px;line-height:1.7;white-space:pre-wrap;font-family:'Merriweather',Georgia,serif"></div>
+          </div>
+        </div>
       </section>
     </main>
   </div>
+</div>
 
-  <dialog id="newWorkDialog">
-    <form method="dialog" id="newWorkForm">
-      <div class="modal-head"><div><h2>Novo trabalho academico</h2><p>Escolha o tipo e defina o tema.</p></div><button class="close" value="cancel">&times;</button></div>
-      <div class="form"><div class="form-grid">
-        <div class="field full"><label>Titulo *</label><input id="wTitle" required placeholder="Ex.: A influencia da alimentacao no desempenho academico"></div>
-        <div class="field"><label>Tipo *</label><select id="wType" required></select></div>
-        <div class="field"><label>Area</label><input id="wArea" placeholder="Ex.: Nutricao, Educacao"></div>
-        <div class="field full"><label>Tema central</label><textarea id="wTheme" rows="3" placeholder="Descreva o tema do trabalho"></textarea></div>
-        <div class="field"><label>Palavras-chave</label><input id="wKeywords" placeholder="Ex.: alimentacao, estudantes"></div>
-        <div class="field"><label>Objectivos</label><textarea id="wObjectives" rows="2" placeholder="Objectivo geral e especificos"></textarea></div>
-        <div class="field"><label>Meta de palavras</label><input id="wTarget" type="number" value="10000" min="1000" step="500"></div>
-      </div></div>
-      <div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Criar trabalho</button></div>
-    </form>
-  </dialog>
+<!-- ════════════ DIALOGS ════════════ -->
+<dialog id="newWorkDialog">
+  <div class="modal-head">
+    <div><h2>Novo Trabalho Académico</h2><p>Defina o tema, tipo e estrutura do seu trabalho.</p></div>
+    <button class="close" onclick="closeDialog('newWorkDialog')">&times;</button>
+  </div>
+  <form id="newWorkForm" class="form">
+    <div class="form-grid">
+      <div class="field full"><label>Título / Tema do Trabalho *</label><input type="text" id="newTitle" required placeholder="Ex: Impacto da Tecnologia na Educação Superior em Moçambique"></div>
+      <div class="field"><label>Tipo de Trabalho *</label><select id="newType" required><option value="Monografia">Monografia</option><option value="Artigo Científico">Artigo Científico</option><option value="Projeto Prático">Projeto Prático</option><option value="Dissertação">Dissertação</option><option value="Tese">Tese</option></select></div>
+      <div class="field"><label>Nível Académico *</label><select id="newLevel" required><option value="Licenciatura">Licenciatura</option><option value="Mestrado">Mestrado</option><option value="Doutoramento">Doutoramento</option></select></div>
+      <div class="field full"><label>Disciplina / Curso</label><input type="text" id="newDiscipline" placeholder="Ex: Ciências da Educação"></div>
+      <div class="field full"><label>Objetivo / Tema Principal</label><textarea id="newObjective" rows="3" placeholder="Descreva o tema principal e objetivo do trabalho..."></textarea></div>
+      <div class="field"><label>Norma de Citação</label><select id="newNorm"><option value="APA 7ª">APA 7ª Edição</option><option value="ABNT">ABNT</option></select></div>
+      <div class="field"><label>Meta de Palavras</label><input type="number" id="newTargetWords" value="15000" min="1000" step="500"></div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn" onclick="closeDialog('newWorkDialog')">Cancelar</button><button type="submit" class="btn btn-primary">Criar Trabalho</button></div>
+  </form>
+</dialog>
 
-  <dialog id="refDialog">
-    <form method="dialog" id="refForm">
-      <div class="modal-head"><div><h2 id="refDialogTitle">Nova referencia</h2><p>Preencha os dados bibliograficos (formato APA).</p></div><button class="close" value="cancel">&times;</button></div>
-      <div class="form"><div class="form-grid">
-        <div class="field full"><label>Importar por DOI / ISBN</label><div class="doi-import"><input id="doiInput" placeholder="Cole o DOI (ex: 10.1000/xyz) ou ISBN"><button type="button" class="btn btn-outline" onclick="importDOI()">Importar</button></div></div>
-        <div class="field full"><label>Autores *</label><input id="rAuthors" required placeholder="Ex.: Silva, J., Santos, M."></div>
-        <div class="field"><label>Ano</label><input id="rYear" placeholder="Ex.: 2024"></div>
-        <div class="field"><label>Tipo</label><select id="rType"><option value="livro">Livro</option><option value="artigo">Artigo cientifico</option><option value="tese">Tese / Dissertacao</option><option value="site">Site / Pagina web</option><option value="capitulo">Capitulo de livro</option><option value="actas">Actas de conferencia</option></select></div>
-        <div class="field full"><label>Titulo da obra *</label><input id="rTitle" required placeholder="Ex.: Nutricao e Saude Publica"></div>
-        <div class="field"><label>Fonte</label><input id="rSource" placeholder="Ex.: Revista de Nutricao"></div>
-        <div class="field"><label>Paginas</label><input id="rPages" placeholder="Ex.: 45-67"></div>
-        <div class="field"><label>Editora</label><input id="rPublisher" placeholder="Ex.: Ed. UEM"></div>
-        <div class="field"><label>Edicao</label><input id="rEdition" placeholder="Ex.: 3a ed."></div>
-        <div class="field"><label>DOI</label><input id="rDoi" placeholder="Ex.: 10.1000/xyz123"></div>
-        <div class="field"><label>URL</label><input id="rUrl" placeholder="Ex.: https://doi.org/..."></div>
-        <input type="hidden" id="rWorkId" value=""><input type="hidden" id="rEditId" value="">
-      </div></div>
-      <div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default">Salvar referencia</button></div>
-    </form>
-  </dialog>
+<dialog id="doiDialog">
+  <div class="modal-head">
+    <div><h2>Importar Referência</h2><p>Importe automaticamente por DOI ou ISBN com citação APA 7ª.</p></div>
+    <button class="close" onclick="closeDialog('doiDialog')">&times;</button>
+  </div>
+  <div class="form">
+    <div class="doi-import">
+      <input type="text" id="doiInput" placeholder="10.xxxx/xxxxx ou ISBN 978-0-123456-78-9">
+      <button class="btn btn-primary" onclick="importDoiIsbn()">📥 Importar</button>
+    </div>
+    <div id="doiError" style="display:none;color:var(--red);margin-top:10px;font-size:12px"></div>
+    <div id="doiResult" style="display:none;margin-top:14px">
+      <h4 style="margin:0 0 10px;font-size:14px">Referência encontrada:</h4>
+      <div id="doiResultContent" style="font-size:12px;padding:12px;border:1px solid var(--line);border-radius:8px;background:#fafafe"></div>
+      <div class="modal-foot" style="padding:14px 0 0;border-top:0;margin-top:14px"><button type="button" class="btn" onclick="closeDialog('doiDialog')">Cancelar</button><button type="button" class="btn btn-primary" onclick="confirmDoiImport()">✓ Adicionar Referência</button></div>
+    </div>
+  </div>
+</dialog>
 
-  <dialog id="aiDialog">
-    <form method="dialog" id="aiForm">
-      <div class="modal-head"><div><h2 id="aiDialogTitle">Assistente IA</h2><p id="aiDialogSub">Gere e melhore o texto academico</p></div><button class="close" value="cancel">&times;</button></div>
-      <div class="form"><div class="form-grid">
-        <div class="field full"><label>Modo</label>
-          <div class="ai-modes" id="aiModes">
-            <button type="button" class="ai-mode active" data-mode="generate">&#9998; Gerar</button>
-            <button type="button" class="ai-mode" data-mode="summarize">&#9776; Resumir</button>
-            <button type="button" class="ai-mode" data-mode="expand">&#8594; Expandir</button>
-            <button type="button" class="ai-mode" data-mode="rewrite">&#8634; Reescrever</button>
-            <button type="button" class="ai-mode" data-mode="translate">&#9999; Traduzir</button>
-            <button type="button" class="ai-mode" data-mode="correct">&#10003; Corrigir</button>
-          </div>
-        </div>
-        <div class="field full" id="aiTargetField"><label>Texto seleccionado</label><textarea id="aiSelected" rows="3" placeholder="Texto seleccionado no editor (para resumir, expandir, reescrever, traduzir, corrigir)"></textarea></div>
-        <div class="field full"><label>Orientacao / Prompt</label><textarea id="aiPrompt" rows="3" placeholder="Instrucoes para a IA..."></textarea></div>
-      </div></div>
-      <div class="modal-foot"><button class="btn" value="cancel">Cancelar</button><button class="btn btn-primary" value="default" id="aiGenerateBtn">Processar</button></div>
-    </form>
-  </dialog>
+<dialog id="chatDialog">
+  <div class="modal-head">
+    <div><h2>🤖 Chat IA</h2><p>Conversa sobre o teu trabalho. A IA tem contexto do teu projeto.</p></div>
+    <button class="close" onclick="closeDialog('chatDialog')">&times;</button>
+  </div>
+  <div class="chat-messages" id="chatMessages"><div class="chat-empty">Pergunta ao assistente sobre o teu trabalho...</div></div>
+  <div class="chat-input">
+    <textarea id="chatInput" rows="2" placeholder="Escreve a tua mensagem..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+    <button class="btn btn-primary btn-sm" onclick="sendChat()">Enviar</button>
+  </div>
+</dialog>
 
-  <dialog id="chatDialog">
-    <div class="modal-head"><div><h2>Chat IA</h2><p>Converse sobre o seu trabalho</p></div><div class="chat-actions"><button type="button" class="btn btn-sm" onclick="clearChat()">Limpar</button><button class="close" onclick="document.getElementById('chatDialog').close()">&times;</button></div></div>
-    <div class="chat-messages" id="chatMessages"><div class="chat-empty">Pergunte qualquer coisa sobre o seu trabalho...</div></div>
-    <form id="chatForm" class="chat-input">
-      <textarea id="chatInput" rows="1" placeholder="Escreva sua pergunta..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-      <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
-    </form>
-  </dialog>
+<div class="toast" id="toast"></div>
+<div class="loading-overlay" id="loadingOverlay" style="display:none"><div class="spinner"></div><p>A processar...</p></div>
 
-  <div class="toast" id="toast" role="status"></div>
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+<script src="/static/app.js"></script>
 </body>
 </html>

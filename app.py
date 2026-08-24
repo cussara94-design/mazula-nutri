@@ -892,7 +892,280 @@ def chat_clear(work_id):
     return jsonify({"message": "Historico limpo."})
 
 
-@app.route("/api/works/<int:work_id>/export", methods=["GET"])
+@app.route("/api/all")
+@login_required
+def api_all():
+    uid = session["user_id"]
+    db = get_db()
+    works = rows_to_list(db.execute("SELECT * FROM works WHERE user_id = ? ORDER BY updated_at DESC", (uid,)).fetchall())
+    refs = rows_to_list(db.execute("SELECT * FROM references_ WHERE work_id IN (SELECT id FROM works WHERE user_id = ?) ORDER BY authors", (uid,)).fetchall())
+    chat = rows_to_list(db.execute("SELECT * FROM chat_history WHERE work_id IN (SELECT id FROM works WHERE user_id = ?) ORDER BY id", (uid,)).fetchall())
+    return jsonify({"works": works, "references": refs, "chat": chat})
+
+
+@app.route("/api/ai", methods=["POST"])
+@login_required
+def api_ai():
+    if not GROQ_API_KEY:
+        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    data = json_body()
+    mode = data.get("mode") or "generate"
+    prompt = (data.get("prompt") or "").strip()
+    work_id = data.get("work_id")
+    lang = data.get("language") or "Portugues"
+    tone = data.get("tone") or "Academico"
+    uid = session["user_id"]
+    db = get_db()
+    work_ctx = ""
+    if work_id:
+        _, work_ctx = get_work_context(db, work_id, uid) or ("", "")
+    sys_base = """Voce e um assistente academico especializado em trabalhos cientificos em lingua portuguesa de Mocambique.
+REGRAS: linguagem formal e academica, terceira pessoa, vocabulario tecnico, sem abreviacoes informais, texto original.
+Idioma: {}. Tom: {}.""".format(lang, tone)
+    if mode == "generate":
+        sys_msg = sys_base + "\n\nGere conteudo academico completo."
+        if work_ctx:
+            sys_msg += "\n\nContexto:\n" + work_ctx[:1500]
+        sys_msg += "\n\nOrientacao: {}".format(prompt or "Gere texto academico completo (minimo 300 palavras).")
+    elif mode == "summarize":
+        sys_msg = sys_base + "\n\nResuma o seguinte texto academico:\n\n" + (prompt or "")
+    elif mode == "expand":
+        sys_msg = sys_base + "\n\nExpanda o seguinte texto academico:\n\n" + (prompt or "")
+    elif mode == "rewrite":
+        sys_msg = sys_base + "\n\nReescreva o seguinte texto academico de forma melhorada:\n\n" + (prompt or "")
+    elif mode == "translate":
+        sys_msg = "Traduza o texto academico seguinte para {}. Mantenha o formato academico.\n\n{}".format(lang, prompt or "")
+    elif mode == "correct":
+        sys_msg = sys_base + "\n\nCorrija erros de ortografia, gramatica e estilo:\n\n" + (prompt or "")
+    else:
+        sys_msg = sys_base
+        if work_ctx:
+            sys_msg += "\n\nContexto:\n" + work_ctx[:1000]
+        sys_msg += "\n\n" + (prompt or "")
+    if mode == "chat" and work_id:
+        db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'user', ?, ?)", (work_id, prompt, now_str()))
+        db.commit()
+    messages = [{"role": "system", "content": sys_msg}, {"role": "user", "content": prompt or "Ajude-me."}]
+    text, error = groq_chat(messages)
+    if error:
+        return jsonify({"error": error}), 502
+    if mode == "chat" and work_id:
+        db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'assistant', ?, ?)", (work_id, text, now_str()))
+        db.commit()
+    return jsonify({"result": text, "mode": mode})
+
+
+@app.route("/api/import_ref", methods=["POST"])
+@login_required
+def api_import_ref():
+    data = json_body()
+    identifier = (data.get("identifier") or "").strip()
+    if not identifier:
+        return jsonify({"error": "Forneca um DOI ou ISBN."}), 400
+    ref_data = None
+    if identifier.startswith("10."):
+        try:
+            r = requests.get("https://api.crossref.org/works/" + identifier.lstrip("doi:").lstrip("DOI:").strip(), timeout=15)
+            if r.status_code == 200:
+                d = r.json().get("message", {})
+                authors_list = d.get("author", [])
+                if authors_list:
+                    parts = []
+                    for a in authors_list:
+                        family = a.get("family", "")
+                        given = a.get("given", "")
+                        if family and given:
+                            parts.append("{}, {}".format(family, given[0] + "."))
+                        elif family:
+                            parts.append(family)
+                    authors_str = ", ".join(parts)
+                else:
+                    authors_str = "Autor desconhecido"
+                year = ""
+                dp = d.get("published-print") or d.get("published-online") or d.get("created")
+                if dp and dp.get("date-parts"):
+                    year = str(dp["date-parts"][0][0])
+                source = ""
+                container = d.get("container-title")
+                if container:
+                    source = container[0] if isinstance(container, list) else container
+                ref_data = {
+                    "authors": authors_str,
+                    "year": year,
+                    "title": (d.get("title") or [""])[0] if d.get("title") else "",
+                    "source": source,
+                    "doi": identifier.lstrip("doi:").lstrip("DOI:").strip(),
+                    "url": "https://doi.org/" + identifier.lstrip("doi:").lstrip("DOI:").strip(),
+                    "ref_type": "artigo",
+                    "publisher": d.get("publisher", ""),
+                }
+        except Exception:
+            pass
+    if not ref_data:
+        try:
+            r = requests.get("https://openlibrary.org/isbn/{}.json".format(identifier), timeout=15)
+            if r.status_code == 200:
+                d = r.json()
+                title = d.get("title", "")
+                authors_str = "Autor desconhecido"
+                if d.get("authors"):
+                    a_ids = [a.get("key") for a in d["authors"] if a.get("key")]
+                    a_names = []
+                    for aid in a_ids[:5]:
+                        try:
+                            ar = requests.get("https://openlibrary.org{}.json".format(aid), timeout=10)
+                            if ar.status_code == 200:
+                                ad = ar.json()
+                                name = ad.get("name", "")
+                                if name:
+                                    a_names.append(name)
+                        except Exception:
+                            pass
+                    if a_names:
+                        authors_str = ", ".join(a_names)
+                year = ""
+                if d.get("publish_date"):
+                    m = re.search(r"(\d{4})", d["publish_date"])
+                    if m:
+                        year = m.group(1)
+                publishers = d.get("publishers") or []
+                source = publishers[0] if publishers else ""
+                ref_data = {
+                    "authors": authors_str,
+                    "year": year,
+                    "title": title,
+                    "source": source,
+                    "doi": "",
+                    "url": "https://openlibrary.org/isbn/{}".format(identifier),
+                    "ref_type": "livro",
+                    "publisher": source,
+                }
+        except Exception:
+            pass
+    if not ref_data:
+        return jsonify({"error": "Nao foi possivel encontrar dados para '{}'.".format(identifier)}), 404
+    return jsonify(ref_data)
+
+
+@app.route("/api/chat", methods=["POST"])
+@login_required
+def api_chat():
+    if not GROQ_API_KEY:
+        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    data = json_body()
+    msg = (data.get("message") or "").strip()
+    work_id = data.get("work_id")
+    if not msg:
+        return jsonify({"error": "Mensagem obrigatoria."}), 400
+    uid = session["user_id"]
+    db = get_db()
+    work_ctx = data.get("context") or ""
+    if work_id and not work_ctx:
+        _, work_ctx = get_work_context(db, work_id, uid) or ("", "")
+    sys_msg = """Voce e um assistente academico especializado em trabalhos cientificos em Mocambique.
+REGRAS: linguagem formal e academica, terceira pessoa, vocabulario tecnico, sem abreviacoes informais, texto original, cite fontes reais APA 7a.
+Se o usuario pedir para gerar conteudo, gere paragrafos academicos completos com citações APA."""
+    if work_ctx:
+        sys_msg += "\n\nContexto do trabalho:\n" + work_ctx[:2000]
+    if work_id:
+        db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'user', ?, ?)", (work_id, msg, now_str()))
+        db.commit()
+        history = db.execute("SELECT role, content FROM chat_history WHERE work_id = ? ORDER BY id DESC LIMIT 10", (work_id,)).fetchall()
+        for h in reversed(history):
+            hd = row_to_dict(h)
+            sys_msg += "\n{}: {}".format(hd["role"].capitalize(), hd["content"][:200])
+    messages = [{"role": "system", "content": sys_msg}, {"role": "user", "content": msg}]
+    text, error = groq_chat(messages)
+    if error:
+        return jsonify({"error": error}), 502
+    if work_id:
+        db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'assistant', ?, ?)", (work_id, text, now_str()))
+        db.commit()
+    return jsonify({"result": text})
+
+
+@app.route("/api/references", methods=["POST"])
+@login_required
+def api_refs_create():
+    uid = session["user_id"]
+    data = json_body()
+    work_id = data.get("work_id")
+    if work_id:
+        db = get_db()
+        work = fetch_owned("works", work_id, uid)
+        if work is None:
+            return jsonify({"error": "Trabalho nao encontrado."}), 404
+    authors = (data.get("authors") or "").strip()
+    title = (data.get("title") or "").strip()
+    if not authors or not title:
+        return jsonify({"error": "Autores e titulo obrigatorios."}), 400
+    db = get_db()
+    now = now_str()
+    cur = db.execute(
+        "INSERT INTO references_ (work_id, authors, year, title, source, doi, url, ref_type, pages, publisher, edition, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (work_id or 0, authors, (data.get("year") or "").strip(), title, (data.get("source") or "").strip(), (data.get("doi") or "").strip(), (data.get("url") or "").strip(), (data.get("ref_type") or "livro").strip(), (data.get("pages") or "").strip(), (data.get("publisher") or "").strip(), (data.get("edition") or "").strip(), now),
+    )
+    db.commit()
+    row = db.execute("SELECT * FROM references_ WHERE id = ?", (cur.lastrowid,)).fetchone()
+    d = row_to_dict(row)
+    authors_apa = (d.get("authors") or "").strip().rstrip(".")
+    year_apa = d.get("year") or "s.f."
+    title_apa = (d.get("title") or "").strip().rstrip(".")
+    d["citation_apa"] = "{} ({}). {}.".format(authors_apa, year_apa, title_apa)
+    return jsonify(d), 201
+
+
+@app.route("/api/references/<int:ref_id>", methods=["DELETE"])
+@login_required
+def api_refs_delete(ref_id):
+    uid = session["user_id"]
+    db = get_db()
+    db.execute("DELETE FROM references_ WHERE id = ?", (ref_id,))
+    db.commit()
+    return jsonify({"message": "Referencia removida."})
+
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = json_body()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not email or not password:
+        return jsonify({"error": "Email e senha obrigatorios."}), 400
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    if user is None or not check_password_hash(user["password"], password):
+        return jsonify({"error": "Email ou senha invalidos."}), 401
+    session.clear()
+    session["user_id"] = user["id"]
+    return jsonify({"name": user["name"], "email": user["email"], "id": user["id"]})
+
+
+@app.route("/api/register", methods=["POST"])
+def api_register():
+    data = json_body()
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not name or not email or not password:
+        return jsonify({"error": "Nome, email e senha obrigatorios."}), 400
+    if len(password) < 6:
+        return jsonify({"error": "A senha deve ter pelo menos 6 caracteres."}), 400
+    db = get_db()
+    existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+    if existing is not None:
+        return jsonify({"error": "Ja existe uma conta com este email."}), 409
+    cur = db.execute(
+        "INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)",
+        (name, email, generate_password_hash(password), now_str()),
+    )
+    db.commit()
+    session.clear()
+    session["user_id"] = cur.lastrowid
+    return jsonify({"name": name, "email": email, "id": cur.lastrowid}), 201
+
+
+@app.route("/api/export/<int:work_id>")
 @login_required
 def export_work(work_id):
     uid = session["user_id"]
