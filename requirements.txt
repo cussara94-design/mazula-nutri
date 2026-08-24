@@ -1,3 +1,4 @@
 flask
 werkzeug
 libsql-experimental
+requests
