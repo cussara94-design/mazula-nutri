@@ -212,6 +212,10 @@ def init_db():
             db.execute(stmt)
         except Exception:
             pass
+    try:
+        db.execute("UPDATE users SET name = 'Academico', email = 'admin@trabalhofacil.com' WHERE name = 'Nutricionista' OR email = 'admin@nutri.local'")
+    except Exception:
+        pass
     db.commit()
 
 
@@ -259,7 +263,7 @@ def login_required(view):
         if user is None:
             db.execute(
                 "INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)",
-                ("Academico", "admin@mazula.local", generate_password_hash("123456"), now_str()),
+                ("Academico", "admin@trabalhofacil.com", generate_password_hash("123456"), now_str()),
             )
             db.commit()
             user = db.execute("SELECT id FROM users LIMIT 1").fetchone()

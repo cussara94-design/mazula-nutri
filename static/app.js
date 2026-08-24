@@ -27,12 +27,12 @@ function showView(name) {
   const btn = document.querySelector(`.nav button[data-view="${name}"]`);
   if (btn) btn.classList.add('active');
   const labels = {
-    dashboard: ['Mazula Academic', 'Gerador de trabalhos academicos com IA'],
+    dashboard: ['Trabalho Facil', 'Gere trabalhos academicos com IA'],
     works: ['Trabalhos', 'Gerir todos os seus trabalhos academicos'],
     references: ['Referencias Bibliograficas', 'Base de dados de citacoes APA'],
     editor: ['Editor de Trabalho', ''],
   };
-  const [title, sub] = labels[name] || ['Mazula', ''];
+  const [title, sub] = labels[name] || ['Trabalho Facil', ''];
   document.getElementById('pageTitle').textContent = title;
   document.getElementById('pageSubtitle').textContent = sub;
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -313,8 +313,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const md = await api('/api/auth/me');
   if (md && md.user) {
-    document.getElementById('userName').textContent = md.user.name;
-    document.getElementById('userEmail').textContent = md.user.email;
+    document.getElementById('userName').textContent = md.user.name || 'Academico';
+    document.getElementById('userEmail').textContent = md.user.email || '';
     document.getElementById('userAvatar').textContent = (md.user.name || 'A').charAt(0).toUpperCase();
   }
 
