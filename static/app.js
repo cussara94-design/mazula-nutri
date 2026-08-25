@@ -6,6 +6,11 @@ let _aiAbort=null;
 /* ── Init ── */
 window.addEventListener('DOMContentLoaded',async()=>{
   initDarkMode();
+  const path=window.location.pathname;
+  if(path.startsWith('/shared/')){
+    await loadSharedWork(path.split('/shared/')[1]);
+    return;
+  }
   try{
     const d=await API('/api/all');
     S.works=d.works||[];S.refs=d.references||[];
@@ -15,6 +20,29 @@ window.addEventListener('DOMContentLoaded',async()=>{
   setupToolbar();
   loadProviders();
 });
+
+async function loadSharedWork(token){
+  showView('sharedView');
+  try{
+    const r=await fetch('/api/shared/'+token).then(r=>r.json());
+    if(r.error){document.getElementById('sharedSections').innerHTML='<div class="empty-state"><p>'+esc(r.error)+'</p></div>';return}
+    const w=r.work;
+    document.getElementById('sharedTitle').textContent=w.title||'Trabalho Academico';
+    document.getElementById('sharedMeta').textContent=(w.work_type||'Monografia')+' | '+(w.area||'')+' | '+(w.theme||'');
+    let secHtml='';
+    (w.sections||[]).forEach((s,i)=>{
+      const content=(s.content||'').replace(/<[^>]+>/g,'');
+      if(!content.trim())return;
+      secHtml+='<div style="margin-bottom:28px"><h2 style="font-size:18px;margin:0 0 10px">'+(i+1)+'. '+esc(s.title)+'</h2><div style="font-size:14px;line-height:1.85;font-family:Merriweather,Georgia,serif;white-space:pre-wrap">'+esc(content)+'</div></div>';
+    });
+    document.getElementById('sharedSections').innerHTML=secHtml||'<div class="empty-state"><p>Secções vazias.</p></div>';
+    let refHtml='';
+    (w.references||[]).forEach(r=>{
+      refHtml+='<div style="font-size:12px;padding:8px 0;border-bottom:1px solid var(--line);font-style:italic">'+esc(r.authors||'')+' ('+(r.year||'s.d.')+'). '+esc(r.title||'')+'. '+esc(r.source||'')+'</div>';
+    });
+    if(refHtml)document.getElementById('sharedRefs').innerHTML='<h3 style="font-size:16px;margin:0 0 12px">Referências</h3>'+refHtml;
+  }catch(e){document.getElementById('sharedSections').innerHTML='<div class="empty-state"><p>Erro ao carregar trabalho.</p></div>'}
+}
 
 /* ── Dark Mode ── */
 function initDarkMode(){
@@ -698,5 +726,129 @@ async function doGenerateQuestionnaire(){
       switchContent('ai');
     }
     toast('Questionário gerado!');
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}
+
+/* ── AI: Suggest Titles ── */
+function applyTitle(el){
+  const title=el.textContent.trim();
+  if(S.currentWork){S.currentWork.title=title;const et=document.getElementById('editorTitle');if(et)et.textContent=title}
+  toast('Titulo aplicado!');
+}
+async function doSuggestTitle(){
+  const w=S.currentWork;
+  const theme=w?.theme||prompt('Digite o tema do trabalho:');
+  if(!theme){toast('Tema obrigatorio.');return}
+  showLoading('A sugerir titulos...');
+  try{
+    const r=await fetch('/api/ai/suggest-title',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({theme:theme,area:w?.area||'',work_type:w?.work_type||'monografia',provider:getProvider()})
+    }).then(r=>r.json());
+    hideLoading();
+    if(r.error){toast(r.error);return}
+    const aiResult=document.getElementById('aiResult');const aiText=document.getElementById('aiResultText');
+    if(aiResult&&aiText){
+      aiResult.style.display='block';
+      aiText.innerHTML='<strong>Titulos sugeridos:</strong><br><br>'+r.suggestions.map((t,i)=>'<div style="padding:8px 12px;margin:4px 0;background:var(--primary-bg);border-radius:var(--radius-xs);cursor:pointer" onclick="applyTitle(this)">'+esc(t)+'</div>').join('');
+      switchContent('ai');
+    }
+    toast('Titulos sugeridos!');
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}
+
+/* ── AI: Generate Abstract ── */
+async function doGenerateAbstract(){
+  showLoading('A gerar resumo...');
+  try{
+    const r=await fetch('/api/ai/generate-abstract',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({work_id:S.currentWork?.id,provider:getProvider()})
+    }).then(r=>r.json());
+    hideLoading();
+    if(r.error){toast(r.error);return}
+    const aiResult=document.getElementById('aiResult');const aiText=document.getElementById('aiResultText');
+    if(aiResult&&aiText){
+      aiResult.style.display='block';
+      aiText.textContent=r.result;
+      switchContent('ai');
+    }
+    toast('Resumo gerado!');
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}
+
+/* ── AI: Generate Keywords ── */
+async function doGenerateKeywords(){
+  const w=S.currentWork;
+  const theme=w?.theme||prompt('Digite o tema do trabalho:');
+  if(!theme){return}
+  showLoading('A gerar palavras-chave...');
+  try{
+    const r=await fetch('/api/ai/generate-keywords',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({theme:theme,area:w?.area||'',provider:getProvider()})
+    }).then(r=>r.json());
+    hideLoading();
+    if(r.error){toast(r.error);return}
+    const aiResult=document.getElementById('aiResult');const aiText=document.getElementById('aiResultText');
+    if(aiResult&&aiText){
+      aiResult.style.display='block';
+      aiText.textContent='Palavras-chave sugeridas:\n\n'+r.keywords;
+      switchContent('ai');
+    }
+    toast('Palavras-chave geradas!');
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}
+
+/* ── AI: Image Analysis ── */
+async function doImageAnalysis(){
+  const file=document.getElementById('analysisImageFile')?.files[0];
+  if(!file){toast('Selecione uma imagem.');return}
+  const prompt=document.getElementById('imageAnalysisPrompt')?.value||'';
+  const fd=new FormData();fd.append('image',file);fd.append('prompt',prompt);
+  const res=document.getElementById('imageAnalysisResult');
+  showLoading('A analisar imagem...');
+  try{
+    const r=await fetch('/api/ai/image-analysis',{method:'POST',body:fd}).then(r=>r.json());
+    hideLoading();
+    if(r.error){res.innerHTML='<span style="color:var(--red)">❌ '+esc(r.error)+'</span>';res.style.display='block';return}
+    res.textContent=r.result;res.style.display='block';
+    toast('Imagem analisada!');
+  }catch(e){hideLoading();res.innerHTML='<span style="color:var(--red)">❌ Erro: '+esc(e.message)+'</span>';res.style.display='block'}
+}
+
+/* ── AI: Similarity Check ── */
+async function doSimilarityCheck(){
+  const a=document.getElementById('similarityTextA')?.value||'';
+  const b=document.getElementById('similarityTextB')?.value||'';
+  if(!a||!b){toast('Preencha ambos os textos.');return}
+  const res=document.getElementById('similarityResult');
+  showLoading('A comparar textos...');
+  try{
+    const r=await fetch('/api/ai/similarity',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text_a:a,text_b:b,provider:getProvider()})
+    }).then(r=>r.json());
+    hideLoading();
+    if(r.error){res.innerHTML='<span style="color:var(--red)">❌ '+esc(r.error)+'</span>';res.style.display='block';return}
+    let html='<div style="text-align:center;margin-bottom:12px"><strong style="font-size:28px;color:var(--primary)">'+(r.score||0)+'%</strong><br><span style="font-size:12px;color:var(--muted)">Similaridade</span></div>';
+    if(r.matches&&r.matches.length){
+      html+='<strong style="font-size:12px;color:var(--red)">Trechos similares:</strong><ul style="margin:6px 0;padding-left:18px;font-size:12px">';
+      r.matches.forEach(m=>{html+='<li style="margin:4px 0">'+esc(m)+'</li>'});
+      html+='</ul>';
+    }
+    if(r.suggestion){html+='<div style="margin-top:8px;padding:10px;background:var(--primary-bg);border-radius:var(--radius-xs);font-size:12px"><strong>Sugestão:</strong> '+esc(r.suggestion)+'</div>'}
+    res.innerHTML=html;res.style.display='block';
+    toast('Comparação concluída!');
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}
+
+/* ── Share Work ── */
+async function doShareWork(){
+  const w=S.currentWork;if(!w){toast('Abra um trabalho primeiro.');return}
+  showLoading('A gerar link...');
+  try{
+    const r=await fetch('/api/works/'+w.id+'/share',{method:'POST'}).then(r=>r.json());
+    hideLoading();
+    if(r.error){toast(r.error);return}
+    if(navigator.clipboard){navigator.clipboard.writeText(r.url)}
+    toast('Link copiado: '+r.url);
+    prompt('Link de partilha:',r.url);
   }catch(e){hideLoading();toast('Erro: '+e.message)}
 }

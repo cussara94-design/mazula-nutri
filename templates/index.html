@@ -238,6 +238,19 @@
   </div>
 </div>
 
+<!-- ════════════ SHARED VIEW ════════════ -->
+<div id="sharedView" class="view" style="max-width:800px;margin:0 auto;padding:40px 24px">
+  <div style="text-align:center;margin-bottom:32px">
+    <h1 id="sharedTitle" style="font-size:28px;letter-spacing:-.5px;margin:0 0 8px"></h1>
+    <p id="sharedMeta" style="color:var(--muted);font-size:13px"></p>
+  </div>
+  <div id="sharedSections"></div>
+  <div id="sharedRefs" style="margin-top:40px"></div>
+  <div style="text-align:center;margin-top:40px;padding:20px;border-top:1px solid var(--line);color:var(--muted);font-size:12px">
+    Partilhado via <strong>Cussara Academic</strong>
+  </div>
+</div>
+
 <!-- ════════════ APP ════════════ -->
 <div id="app" class="view">
   <div class="app">
@@ -353,6 +366,7 @@
               </div>
               <button class="btn btn-sm btn-outline" onclick="openDoiDialog()" title="Importar referências">📚 DOI/ISBN</button>
               <button class="btn btn-sm btn-outline" onclick="showDialog('uploadArticleDialog')" title="Importar artigo PDF">📄 Artigo</button>
+              <button class="btn btn-sm btn-outline" onclick="doShareWork()" title="Partilhar trabalho">🔗 Partilhar</button>
               <button class="btn btn-sm" onclick="openChatDialog()" title="Chat IA">🤖 Chat</button>
               <button class="btn btn-sm btn-danger" onclick="deleteCurrentWork()" title="Apagar">🗑</button>
             </div>
@@ -433,9 +447,9 @@
       <!-- ── Tools ── -->
       <section id="toolsView" class="view">
         <div class="topbar">
-          <div><h1>Ferramentas Académicas</h1><p class="subtitle">Análise de dados, questionários e importação de artigos.</p></div>
+          <div><h1>Ferramentas Académicas</h1><p class="subtitle">Análise de dados, questionários, imagens e ferramentas IA.</p></div>
         </div>
-        <div class="works-grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+        <div class="works-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
           <div class="work-card" onclick="showDialog('uploadArticleDialog')">
             <div class="work-card-header"><span class="work-type-badge">📄</span></div>
             <h3>Importar Artigos</h3>
@@ -451,8 +465,38 @@
           <div class="work-card" onclick="showDialog('questionnaireDialog')">
             <div class="work-card-header"><span class="work-type-badge">📋</span></div>
             <h3>Gerar Questionário</h3>
-            <p>Gere instrumentos de coleta de dados automaticamente baseados no teu trabalho.</p>
+            <p>Gere instrumentos de coleta de dados automaticamente.</p>
             <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Gerar instrumento →</span></div>
+          </div>
+          <div class="work-card" onclick="doSuggestTitle()">
+            <div class="work-card-header"><span class="work-type-badge">💡</span></div>
+            <h3>Sugerir Títulos</h3>
+            <p>Gere opções de títulos académicos baseados no tema e área.</p>
+            <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Sugerir →</span></div>
+          </div>
+          <div class="work-card" onclick="doGenerateAbstract()">
+            <div class="work-card-header"><span class="work-type-badge">📝</span></div>
+            <h3>Gerar Resumo</h3>
+            <p>Gere automaticamente o abstract/resumo do teu trabalho.</p>
+            <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Gerar resumo →</span></div>
+          </div>
+          <div class="work-card" onclick="doGenerateKeywords()">
+            <div class="work-card-header"><span class="work-type-badge">🔑</span></div>
+            <h3>Gerar Palavras-chave</h3>
+            <p>Sugira palavras-chave académicas relevantes para o teu tema.</p>
+            <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Sugerir →</span></div>
+          </div>
+          <div class="work-card" onclick="showDialog('imageAnalysisDialog')">
+            <div class="work-card-header"><span class="work-type-badge">🖼</span></div>
+            <h3>Analisar Imagem</h3>
+            <p>Extraia dados de tabelas, gráficos ou imagens com Gemini Vision.</p>
+            <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Analisar →</span></div>
+          </div>
+          <div class="work-card" onclick="showDialog('similarityDialog')">
+            <div class="work-card-header"><span class="work-type-badge">🔍</span></div>
+            <h3>Verificar Plágio</h3>
+            <p>Compare dois textos para detectar similaridade e plagio.</p>
+            <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Comparar →</span></div>
           </div>
         </div>
         <div id="toolsArticlesList" style="margin-top:24px"></div>
@@ -546,6 +590,32 @@
     <div class="field full" id="questionnaireWorkSelectWrap"><label>Trabalho</label><select id="questionnaireWorkSelect" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:var(--radius-xs)"></select></div>
     <div class="field full"><label>Instruções adicionais (opcional)</label><textarea id="questionnairePrompt" rows="3" placeholder="Ex: Questionário sobre hábitos alimentares de estudantes universitários..."></textarea></div>
     <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('questionnaireDialog')">Cancelar</button><button type="button" class="btn btn-primary" onclick="doGenerateQuestionnaire()">📋 Gerar Questionário</button></div>
+  </div>
+</dialog>
+
+<dialog id="imageAnalysisDialog">
+  <div class="modal-head">
+    <div><h2>🖼 Análise de Imagem</h2><p>Use Gemini Vision para extrair dados de imagens, tabelas ou gráficos.</p></div>
+    <button class="close" onclick="closeDialog('imageAnalysisDialog')">&times;</button>
+  </div>
+  <div class="form">
+    <div class="field full"><label>Imagem (PNG, JPG)</label><input type="file" id="analysisImageFile" accept="image/*" style="border:1px solid var(--line);border-radius:var(--radius-xs);padding:10px;width:100%"></div>
+    <div class="field full"><label>Instrução (opcional)</label><textarea id="imageAnalysisPrompt" rows="2" placeholder="Ex: Extraia os dados desta tabela..."></textarea></div>
+    <div id="imageAnalysisResult" style="display:none;margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px;line-height:1.7;white-space:pre-wrap"></div>
+    <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('imageAnalysisDialog')">Fechar</button><button type="button" class="btn btn-primary" onclick="doImageAnalysis()">🖼 Analisar</button></div>
+  </div>
+</dialog>
+
+<dialog id="similarityDialog">
+  <div class="modal-head">
+    <div><h2>🔍 Verificar Plágio</h2><p>Compare dois textos para detectar similaridade.</p></div>
+    <button class="close" onclick="closeDialog('similarityDialog')">&times;</button>
+  </div>
+  <div class="form">
+    <div class="field full"><label>Texto A</label><textarea id="similarityTextA" rows="4" placeholder="Cole o primeiro texto aqui..."></textarea></div>
+    <div class="field full"><label>Texto B</label><textarea id="similarityTextB" rows="4" placeholder="Cole o segundo texto aqui..."></textarea></div>
+    <div id="similarityResult" style="display:none;margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px"></div>
+    <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('similarityDialog')">Fechar</button><button type="button" class="btn btn-primary" onclick="doSimilarityCheck()">🔍 Comparar</button></div>
   </div>
 </dialog>
 

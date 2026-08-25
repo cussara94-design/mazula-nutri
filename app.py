@@ -52,7 +52,8 @@ SCHEMA = [
         status TEXT NOT NULL DEFAULT 'rascunho',
         target_words INTEGER DEFAULT 10000,
         created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        share_token TEXT
     )""",
     """CREATE TABLE IF NOT EXISTS sections (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -246,6 +247,10 @@ def init_db():
             db.execute("ALTER TABLE works ADD COLUMN {} DEFAULT {}".format(col, default))
         except Exception:
             pass
+    try:
+        db.execute("ALTER TABLE works ADD COLUMN share_token TEXT")
+    except Exception:
+        pass
     try:
         db.execute("CREATE TABLE IF NOT EXISTS chat_history (id INTEGER PRIMARY KEY AUTOINCREMENT, work_id INTEGER NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT)")
     except Exception:
@@ -1023,6 +1028,186 @@ Seja directo, util e preciso. Evite respostas genericas."""
         db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'assistant', ?, ?)", (work_id, text, now_str()))
         db.commit()
     return jsonify({"result": text})
+
+
+@app.route("/api/ai/suggest-title", methods=["POST"])
+@login_required
+def ai_suggest_title():
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "Nenhum provider de IA configurado."}), 503
+    data = json_body()
+    theme = (data.get("theme") or "").strip()
+    area = (data.get("area") or "").strip()
+    work_type = (data.get("work_type") or "monografia").strip()
+    provider = data.get("provider") or None
+    if not theme:
+        return jsonify({"error": "Tema obrigatorio."}), 400
+    sys_msg = "Voce e um academico especialista em titulos cientificos em Mocambique. Gere 5 opcoes de titulos academicos形式 norma APA, claros, concisos (max 15 palavras). Responda APENAS com os 5 titulos, um por linha, sem numeracao."
+    user_msg = "Tema: {}\nArea: {}\nTipo: {}\nSugira 5 titulos academicos.".format(theme, area, work_type)
+    messages = [{"role": "system", "content": sys_msg}, {"role": "user", "content": user_msg}]
+    text, error = ai_chat(messages, provider=provider, temperature=0.8, max_tokens=500)
+    if error:
+        return jsonify({"error": error}), 502
+    titles = [t.strip().strip("0123456789.-) ") for t in text.strip().split("\n") if t.strip()]
+    return jsonify({"suggestions": titles[:5]})
+
+
+@app.route("/api/ai/generate-abstract", methods=["POST"])
+@login_required
+def ai_generate_abstract():
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "Nenhum provider de IA configurado."}), 503
+    data = json_body()
+    work_id = data.get("work_id")
+    provider = data.get("provider") or None
+    uid = session["user_id"]
+    db = get_db()
+    if work_id:
+        _, work_ctx = get_work_context(db, int(work_id), uid) or ("", "")
+    else:
+        work_ctx = data.get("context") or ""
+    sys_msg = """Voce e um especialista em resumos academicos (abstracts).
+Gere um resumo academico profissional seguindo as normas APA 7a:
+1. Maximo 250 palavras
+2. Uma unica paragrafo sem formatacao
+3. Incluir: objetivo, metodologia, resultados principais e conclusao
+4. Linguagem formal, terceira pessoa
+5. Palavras-chave no final separadas por virgula"""
+    messages = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": "Gere o resumo (abstract) deste trabalho:\n\n{}".format(work_ctx[:3000])},
+    ]
+    text, error = ai_chat(messages, provider=provider, temperature=0.5, max_tokens=1000)
+    if error:
+        return jsonify({"error": error}), 502
+    return jsonify({"result": text})
+
+
+@app.route("/api/ai/similarity", methods=["POST"])
+@login_required
+def ai_similarity():
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "Nenhum provider de IA configurado."}), 503
+    data = json_body()
+    text_a = (data.get("text_a") or "").strip()
+    text_b = (data.get("text_b") or "").strip()
+    provider = data.get("provider") or None
+    if not text_a or not text_b:
+        return jsonify({"error": "Dois textos obrigatorios."}), 400
+    sys_msg = """Voce e um analise de similaridade de textos academicos.
+Analise os dois textos e retorne:
+1. Percentual de similaridade (0-100%)
+2. Frases ou trechos que parecem copiados ou muito similares
+3. Sugerir reescrita se necessario
+Responda em formato JSON: {"score": 75, "matches": ["trecho1...", "trecho2..."], "suggestion": "..."}"""
+    messages = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": "TEXTO A:\n{}\n\nTEXTO B:\n{}".format(text_a[:3000], text_b[:3000])},
+    ]
+    text, error = ai_chat(messages, provider=provider, temperature=0.3, max_tokens=2000)
+    if error:
+        return jsonify({"error": error}), 502
+    try:
+        import json as _json
+        result = _json.loads(text.strip().strip("```json").strip("```"))
+    except Exception:
+        result = {"score": 0, "matches": [], "suggestion": text}
+    return jsonify(result)
+
+
+@app.route("/api/ai/image-analysis", methods=["POST"])
+@login_required
+def ai_image_analysis():
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "Gemini API nao configurada para analise de imagens."}), 503
+    if "image" not in request.files:
+        return jsonify({"error": "Nenhuma imagem enviada."}), 400
+    f = request.files["image"]
+    img_data = f.read()
+    import base64
+    img_b64 = base64.b64encode(img_data).decode("utf-8")
+    mime = f.content_type or "image/png"
+    prompt = request.form.get("prompt") or "Descreva esta imagem em detalhe. Se for uma tabela, extraia os dados. Se for um grafico, descreva os valores."
+    body = {
+        "contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": mime, "data": img_b64}}]}],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
+    }
+    resp = requests.post(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}".format(GEMINI_API_KEY),
+        headers={"Content-Type": "application/json"},
+        json=body,
+        timeout=120,
+    )
+    if resp.status_code != 200:
+        error_msg = "Erro ao analisar imagem."
+        try:
+            error_msg = resp.json().get("error", {}).get("message", error_msg)
+        except Exception:
+            pass
+        return jsonify({"error": error_msg}), 502
+    try:
+        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return jsonify({"result": text})
+    except (KeyError, IndexError):
+        return jsonify({"error": "Resposta invalida do Gemini."}), 502
+
+
+@app.route("/api/works/<int:work_id>/share", methods=["POST"])
+@login_required
+def work_share(work_id):
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", work_id, uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    import secrets
+    token = secrets.token_urlsafe(16)
+    now = now_str()
+    db.execute("UPDATE works SET share_token = ? WHERE id = ?", (token, work_id))
+    db.commit()
+    share_url = "{}/shared/{}".format(request.host_url.rstrip("/"), token)
+    return jsonify({"url": share_url, "token": token})
+
+
+@app.route("/api/shared/<token>", methods=["GET"])
+def shared_work(token):
+    db = get_db()
+    work = db.execute("SELECT * FROM works WHERE share_token = ?", (token,)).fetchone()
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado ou link invalido."}), 404
+    work = row_to_dict(work)
+    work["sections"] = rows_to_list(
+        db.execute("SELECT * FROM sections WHERE work_id = ? ORDER BY order_index", (work["id"],)).fetchall()
+    )
+    work["references"] = rows_to_list(
+        db.execute("SELECT * FROM references_ WHERE work_id = ? ORDER BY authors", (work["id"],)).fetchall()
+    )
+    for s in work["sections"]:
+        c = s.get("content") or ""
+        s["word_count"] = len(c.split()) if c.strip() else 0
+    return jsonify({"work": work})
+
+
+@app.route("/api/ai/generate-keywords", methods=["POST"])
+@login_required
+def ai_generate_keywords():
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "Nenhum provider de IA configurado."}), 503
+    data = json_body()
+    theme = (data.get("theme") or "").strip()
+    area = (data.get("area") or "").strip()
+    provider = data.get("provider") or None
+    if not theme:
+        return jsonify({"error": "Tema obrigatorio."}), 400
+    sys_msg = "Gere 5-8 palavras-chave academicas em portugues para pesquisas cientificas. Separe por virgula. Responda APENAS com as palavras-chave."
+    messages = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": "Tema: {}\nArea: {}".format(theme, area)},
+    ]
+    text, error = ai_chat(messages, provider=provider, temperature=0.7, max_tokens=200)
+    if error:
+        return jsonify({"error": error}), 502
+    return jsonify({"keywords": text.strip()})
 
 
 @app.route("/api/references", methods=["POST"])
