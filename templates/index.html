@@ -307,6 +307,22 @@
           <div><h1>Meus Trabalhos</h1><p class="subtitle">Gere e organize as suas monografias e trabalhos académicos.</p></div>
           <div class="actions"><button class="btn btn-primary" onclick="showDialog('newWorkDialog')"><span>＋</span> Novo Trabalho</button></div>
         </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="worksSearch" placeholder="🔍 Pesquisar por título..." oninput="filterWorks()" style="flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px">
+          <select id="worksTypeFilter" onchange="filterWorks()" style="padding:10px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px">
+            <option value="">Todos os tipos</option>
+            <option value="monografia">Monografia</option>
+            <option value="artigo">Artigo</option>
+            <option value="projeto">Projeto</option>
+            <option value="dissertacao">Dissertação</option>
+            <option value="tese">Tese</option>
+          </select>
+          <select id="worksStatusFilter" onchange="filterWorks()" style="padding:10px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px">
+            <option value="">Todos os estados</option>
+            <option value="rascunho">Rascunho</option>
+            <option value="concluido">Concluído</option>
+          </select>
+        </div>
         <div id="worksList"><div class="empty-state"><p>Nenhum trabalho criado ainda.</p><button class="btn btn-primary" onclick="showDialog('newWorkDialog')">＋ Criar Primeiro Trabalho</button></div></div>
       </section>
 

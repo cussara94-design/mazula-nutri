@@ -94,10 +94,24 @@ function renderDashboard(){
 }
 
 /* ── Works List ── */
-function renderWorksList(){
+function renderWorksList(){renderWorksListFiltered()}
+
+function filterWorks(){renderWorksListFiltered()}
+
+function renderWorksListFiltered(){
   const el=document.getElementById('worksList');
   if(!S.works.length){el.innerHTML='<div class="empty-state"><p>Nenhum trabalho criado ainda.</p><button class="btn btn-primary" onclick="showDialog(\'newWorkDialog\')">＋ Criar Primeiro Trabalho</button></div>';return}
-  el.innerHTML='<div class="works-grid">'+S.works.map(w=>`
+  const q=(document.getElementById('worksSearch')?.value||'').toLowerCase();
+  const tf=document.getElementById('worksTypeFilter')?.value||'';
+  const sf=document.getElementById('worksStatusFilter')?.value||'';
+  let filtered=S.works.filter(w=>{
+    if(q&&!((w.title||'').toLowerCase().includes(q)||(w.theme||'').toLowerCase().includes(q)||(w.area||'').toLowerCase().includes(q)))return false;
+    if(tf&&(w.work_type||w.type||'')!==tf)return false;
+    if(sf&&(w.status||'rascunho')!==sf)return false;
+    return true;
+  });
+  if(!filtered.length){el.innerHTML='<div class="empty-state"><p>Nenhum trabalho encontrado com esses filtros.</p></div>';return}
+  el.innerHTML='<div class="works-grid">'+filtered.map(w=>`
     <div class="work-card" onclick="openWork('${w.id}')">
       <div class="work-card-header">
         <span class="work-type-badge">${esc(w.work_type||w.type||'Monografia')}</span>
@@ -311,16 +325,16 @@ async function doAutoSave(){
   const statusEl=document.getElementById('saveStatus');
   if(statusEl){statusEl.textContent='A guardar...';statusEl.className='save-status saving'}
   try{
-    await fetch('/api/works/'+w.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({word_count:w.word_count,status:w.status})
-    });
-    for(const s of(w.sections||[])){
-      if(s.id&&s._dirty){
-        await fetch('/api/works/'+w.id+'/sections/'+s.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({content:s.content,title:s.title})
-        });
-        s._dirty=false;
-      }
+    const dirtySections=(w.sections||[]).filter(s=>s.id&&s._dirty);
+    if(dirtySections.length>0){
+      await fetch('/api/works/'+w.id+'/sections/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sections:dirtySections.map(s=>({id:s.id,content:s.content,title:s.title})),word_count:w.word_count})
+      });
+      dirtySections.forEach(s=>s._dirty=false);
+    }else{
+      await fetch('/api/works/'+w.id,{method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({word_count:w.word_count,status:w.status})
+      });
     }
     S.dirty=false;
     if(statusEl){statusEl.textContent='Guardado ✓';statusEl.className='save-status'}

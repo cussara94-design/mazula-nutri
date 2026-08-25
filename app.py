@@ -656,6 +656,43 @@ def section_update(work_id, section_id):
     return jsonify({"section": row_to_dict(row)})
 
 
+@app.route("/api/works/<int:work_id>/sections/bulk", methods=["PUT"])
+@login_required
+def sections_bulk_update(work_id):
+    uid = session["user_id"]
+    db = get_db()
+    work = fetch_owned("works", work_id, uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    data = json_body()
+    sections = data.get("sections") or []
+    if not sections:
+        return jsonify({"error": "Nenhuma secção para atualizar."}), 400
+    now = now_str()
+    updated = 0
+    for s in sections:
+        sid = s.get("id")
+        if not sid:
+            continue
+        content = sanitize_html(s.get("content") or "")
+        title = s.get("title")
+        updates = {"updated_at": now}
+        if content is not None:
+            updates["content"] = content
+        if title is not None:
+            updates["title"] = title
+        set_sql = ", ".join('"{}" = ?'.format(c) for c in updates)
+        db.execute(
+            'UPDATE sections SET {} WHERE id = ? AND work_id = ?'.format(set_sql),
+            list(updates.values()) + [sid, work_id],
+        )
+        updated += 1
+    if updated:
+        db.execute("UPDATE works SET updated_at = ?, word_count = ? WHERE id = ?", (now, data.get("word_count", 0), work_id))
+    db.commit()
+    return jsonify({"updated": updated})
+
+
 @app.route("/api/works/<int:work_id>/references", methods=["GET"])
 @login_required
 def refs_list(work_id):
