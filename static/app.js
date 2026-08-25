@@ -12,7 +12,25 @@ window.addEventListener('DOMContentLoaded',async()=>{
   }catch(e){console.error('Load failed:',e)}
   bindEvents();
   setupToolbar();
+  loadProviders();
 });
+
+async function loadProviders(){
+  try{
+    const d=await API('/api/ai/providers');
+    if(d.providers){
+      const sel=document.getElementById('aiProvider');if(!sel)return;
+      sel.innerHTML='';
+      Object.entries(d.providers).forEach(([key,p])=>{
+        const opt=document.createElement('option');
+        opt.value=key;opt.textContent=p.name+(p.free?' (Grátis)':'');
+        if(!p.available)opt.disabled=true;
+        sel.appendChild(opt);
+      });
+      if(d.default)sel.value=d.default;
+    }
+  }catch(e){}
+}
 
 function bindEvents(){
   document.querySelectorAll('#sidebarNav button').forEach(b=>{
@@ -271,7 +289,7 @@ async function generateSection(i){
     let d;
     if(useRag&&hasArticles){
       d=await fetch('/api/works/'+w.id+'/generate-from-articles',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({prompt:prompt,section_title:sec.title})
+        body:JSON.stringify({prompt:prompt,section_title:sec.title,provider:getProvider()})
       }).then(r=>r.json());
     }else{
       d=await aiRequest('generate',prompt,'Português','Académico');
@@ -400,7 +418,7 @@ async function sendChat(){
   c.innerHTML+='<div class="chat-msg assistant loading"><div class="typing"><span></span></div></div>';c.scrollTop=c.scrollHeight;
   try{
     const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({work_id:S.currentWork?.id,message:msg,context:S.currentWork?`Título: ${S.currentWork.title}. Tipo: ${S.currentWork.work_type||S.currentWork.type}. Norma: ${S.currentWork.norm||'APA 7ª'}. Secções: ${(S.currentWork.sections||[]).map(s=>s.title).join(', ')}.`:''})
+      body:JSON.stringify({work_id:S.currentWork?.id,message:msg,provider:getProvider(),context:S.currentWork?`Título: ${S.currentWork.title}. Tipo: ${S.currentWork.work_type||S.currentWork.type}. Norma: ${S.currentWork.norm||'APA 7ª'}. Secções: ${(S.currentWork.sections||[]).map(s=>s.title).join(', ')}.`:''})
     }).then(r=>r.json());
     S.chat.push({role:'assistant',content:r.result||r.error||'Sem resposta'});renderChat();
   }catch(e){S.chat.push({role:'assistant',content:'Erro de conexão: '+e.message});renderChat()}
@@ -437,9 +455,10 @@ function copyAiResult(){
 }
 
 /* ── AI Request ── */
+function getProvider(){const s=document.getElementById('aiProvider');return s?s.value:''}
 async function aiRequest(mode,prompt,lang,tone){
   const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({mode,prompt,language:lang||'Português',tone:tone||'Académico',work_id:S.currentWork?.id})
+    body:JSON.stringify({mode,prompt,language:lang||'Português',tone:tone||'Académico',work_id:S.currentWork?.id,provider:getProvider()})
   });return await r.json();
 }
 
@@ -606,7 +625,7 @@ async function doAnalyzeData(){
   showLoading('A analisar dados...');
   try{
     const r=await fetch('/api/analyze-data',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({headers:_uploadedData.headers,rows:_uploadedData.rows,norm:'APA'})
+      body:JSON.stringify({headers:_uploadedData.headers,rows:_uploadedData.rows,norm:'APA',provider:getProvider()})
     }).then(r=>r.json());
     hideLoading();
     if(r.error){toast(r.error);return}
@@ -624,7 +643,7 @@ async function doGenerateQuestionnaire(){
   showLoading('A gerar questionário...');
   try{
     const r=await fetch('/api/generate-questionnaire',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({work_id:workId?parseInt(workId):null,prompt:prompt})
+      body:JSON.stringify({work_id:workId?parseInt(workId):null,prompt:prompt,provider:getProvider()})
     }).then(r=>r.json());
     hideLoading();
     if(r.error){toast(r.error);return}

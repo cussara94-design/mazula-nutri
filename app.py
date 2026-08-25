@@ -17,6 +17,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TURSO_URL = os.environ.get("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+DEFAULT_AI_PROVIDER = os.environ.get("DEFAULT_AI_PROVIDER", "groq")
 
 if TURSO_URL:
     DATABASE_PATH = None
@@ -344,6 +346,51 @@ def groq_chat(messages, temperature=0.7, max_tokens=4096):
             pass
         return None, error_msg
     return resp.json().get("choices", [{}])[0].get("message", {}).get("content", ""), None
+
+
+def gemini_chat(messages, temperature=0.7, max_tokens=4096):
+    contents = []
+    system_instruction = None
+    for m in messages:
+        if m["role"] == "system":
+            system_instruction = m["content"]
+        else:
+            role = "user" if m["role"] == "user" else "model"
+            contents.append({"role": role, "parts": [{"text": m["content"]}]})
+    body = {"contents": contents, "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens}}
+    if system_instruction:
+        body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+    resp = requests.post(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}".format(GEMINI_API_KEY),
+        headers={"Content-Type": "application/json"},
+        json=body,
+        timeout=120,
+    )
+    if resp.status_code != 200:
+        error_msg = "Erro ao comunicar com Gemini."
+        try:
+            error_msg = resp.json().get("error", {}).get("message", error_msg)
+        except Exception:
+            pass
+        return None, error_msg
+    try:
+        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return text, None
+    except (KeyError, IndexError):
+        return None, "Resposta invalida do Gemini."
+
+
+def ai_chat(messages, provider=None, temperature=0.7, max_tokens=4096):
+    provider = provider or DEFAULT_AI_PROVIDER
+    if provider == "gemini" and GEMINI_API_KEY:
+        return gemini_chat(messages, temperature, max_tokens)
+    if provider == "groq" and GROQ_API_KEY:
+        return groq_chat(messages, temperature, max_tokens)
+    if GROQ_API_KEY:
+        return groq_chat(messages, temperature, max_tokens)
+    if GEMINI_API_KEY:
+        return gemini_chat(messages, temperature, max_tokens)
+    return None, "Nenhum provider de IA configurado."
 
 
 def get_work_context(db, work_id, uid):
@@ -742,17 +789,30 @@ def api_all():
     return jsonify({"works": works, "references": refs, "chat": chat, "total_words": total_wc})
 
 
+@app.route("/api/ai/providers", methods=["GET"])
+@login_required
+def api_ai_providers():
+    return jsonify({
+        "providers": {
+            "groq": {"name": "Groq", "available": bool(GROQ_API_KEY), "free": True, "model": "Qwen 3.6 27B"},
+            "gemini": {"name": "Google Gemini", "available": bool(GEMINI_API_KEY), "free": True, "model": "Gemini 2.0 Flash"},
+        },
+        "default": DEFAULT_AI_PROVIDER,
+    })
+
+
 @app.route("/api/ai", methods=["POST"])
 @login_required
 def api_ai():
-    if not GROQ_API_KEY:
-        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "Nenhum provider de IA configurado."}), 503
     data = json_body()
     mode = data.get("mode") or "generate"
     prompt = (data.get("prompt") or "").strip()
     work_id = data.get("work_id")
     lang = data.get("language") or "Portugues"
     tone = data.get("tone") or "Academico"
+    provider = data.get("provider") or None
     uid = session["user_id"]
     db = get_db()
     work_ctx = ""
@@ -785,7 +845,7 @@ Idioma: {}. Tom: {}.""".format(lang, tone)
         db.execute("INSERT INTO chat_history (work_id, role, content, created_at) VALUES (?, 'user', ?, ?)", (work_id, prompt, now_str()))
         db.commit()
     messages = [{"role": "system", "content": sys_msg}, {"role": "user", "content": prompt or "Ajude-me."}]
-    text, error = groq_chat(messages)
+    text, error = ai_chat(messages, provider=provider)
     if error:
         return jsonify({"error": error}), 502
     if mode == "chat" and work_id:
@@ -889,11 +949,12 @@ def api_import_ref():
 @app.route("/api/chat", methods=["POST"])
 @login_required
 def api_chat():
-    if not GROQ_API_KEY:
-        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "Nenhum provider de IA configurado."}), 503
     data = json_body()
     msg = (data.get("message") or "").strip()
     work_id = data.get("work_id")
+    provider = data.get("provider") or None
     if not msg:
         return jsonify({"error": "Mensagem obrigatoria."}), 400
     uid = session["user_id"]
@@ -918,7 +979,7 @@ Seja directo, util e preciso. Evite respostas genericas."""
             messages.append({"role": role, "content": hd["content"][:1000]})
     else:
         messages = [{"role": "system", "content": sys_msg}, {"role": "user", "content": msg}]
-    text, error = groq_chat(messages)
+    text, error = ai_chat(messages, provider=provider)
     if error:
         return jsonify({"error": error}), 502
     if work_id:
@@ -1078,8 +1139,8 @@ def delete_article(work_id, ref_id):
 @app.route("/api/works/<int:work_id>/generate-from-articles", methods=["POST"])
 @login_required
 def generate_from_articles(work_id):
-    if not GROQ_API_KEY:
-        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "Nenhum provider de IA configurado."}), 503
     uid = session["user_id"]
     db = get_db()
     work = fetch_owned("works", work_id, uid)
@@ -1088,6 +1149,7 @@ def generate_from_articles(work_id):
     data = json_body()
     prompt = (data.get("prompt") or "").strip()
     section_title = (data.get("section_title") or "").strip()
+    provider = data.get("provider") or None
     if not prompt:
         prompt = "Escreva o conteudo da secção '{}'".format(section_title or "Trabalho")
     all_chunks = db.execute(
@@ -1129,7 +1191,7 @@ REFERENCIAS:
         {"role": "system", "content": sys_msg},
         {"role": "user", "content": prompt + "\n\nEscreva o conteudo academico baseado nos artigos acima. Cite em APA 7a."},
     ]
-    text, error = groq_chat(messages, temperature=0.6, max_tokens=4096)
+    text, error = ai_chat(messages, provider=provider, temperature=0.6, max_tokens=4096)
     if error:
         return jsonify({"error": error}), 502
     return jsonify({"result": text})
@@ -1186,6 +1248,7 @@ def analyze_data():
     rows = data.get("rows") or []
     prompt = (data.get("prompt") or "").strip()
     norm = data.get("norm") or "APA"
+    provider = data.get("provider") or None
     if not headers or not rows:
         return jsonify({"error": "Dados obrigatorios."}), 400
     table_str = " | ".join(headers) + "\n" + " | ".join(["---"] * len(headers)) + "\n"
@@ -1205,7 +1268,7 @@ Dados:
         {"role": "system", "content": sys_msg},
         {"role": "user", "content": user_msg},
     ]
-    text, error = groq_chat(messages, temperature=0.5, max_tokens=4096)
+    text, error = ai_chat(messages, provider=provider, temperature=0.5, max_tokens=4096)
     if error:
         return jsonify({"error": error}), 502
     return jsonify({"result": text})
@@ -1214,12 +1277,13 @@ Dados:
 @app.route("/api/generate-questionnaire", methods=["POST"])
 @login_required
 def generate_questionnaire():
-    if not GROQ_API_KEY:
-        return jsonify({"error": "Chave API do Groq nao configurada."}), 503
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "Nenhum provider de IA configurado."}), 503
     uid = session["user_id"]
     data = json_body()
     work_id = data.get("work_id")
     prompt = (data.get("prompt") or "").strip()
+    provider = data.get("provider") or None
     db = get_db()
     work_ctx = ""
     if work_id:
@@ -1242,7 +1306,7 @@ REGRAS:
         {"role": "system", "content": sys_msg},
         {"role": "user", "content": user_msg},
     ]
-    text, error = groq_chat(messages, temperature=0.6, max_tokens=4096)
+    text, error = ai_chat(messages, provider=provider, temperature=0.6, max_tokens=4096)
     if error:
         return jsonify({"error": error}), 502
     return jsonify({"result": text})
