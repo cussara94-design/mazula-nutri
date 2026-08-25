@@ -942,9 +942,6 @@ function selectPaymentMethod(el){
   if(method==='mpesa'){
     instr.innerHTML='Envie o valor para <strong>M-Pesa: +258 84 908 1440</strong> (Cussara Academic).<br>Use o teu numero como referencia.';
     details.style.display='block';
-  }else if(method==='emola'){
-    instr.innerHTML='Envie o valor para <strong>eMola: +258 84 908 1440</strong> (Cussara Academic).<br>Use o teu numero como referencia.';
-    details.style.display='block';
   }else{
     instr.innerHTML='<strong>IBAN:</strong> MZ59 0040 0000 1234 5678 9012 3<br><strong>Titular:</strong> Cussara Academic<br><strong>Banco:</strong> BCI<br>Use o teu nome como referencia.';
     details.style.display='block';
