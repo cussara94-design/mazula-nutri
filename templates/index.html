@@ -427,6 +427,7 @@
             <div class="work-card-footer"><span style="font-size:12px;color:var(--primary);font-weight:600">Gerar instrumento →</span></div>
           </div>
         </div>
+        <div id="toolsArticlesList" style="margin-top:24px"></div>
       </section>
     </main>
   </div>
@@ -489,7 +490,8 @@
     <button class="close" onclick="closeDialog('uploadArticleDialog')">&times;</button>
   </div>
   <div class="form">
-    <div class="field full"><label>Ficheiro (PDF ou TXT)</label><input type="file" id="articleFile" accept=".pdf,.txt" style="border:1px solid var(--line);border-radius:var(--radius-xs);padding:10px"></div>
+    <div class="field full" id="articleWorkSelectWrap"><label>Trabalho</label><select id="articleWorkSelect" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:var(--radius-xs)"></select></div>
+    <div class="field full"><label>Ficheiro (PDF ou TXT)</label><input type="file" id="articleFile" accept=".pdf,.txt" style="border:1px solid var(--line);border-radius:var(--radius-xs);padding:10px;width:100%"></div>
     <div id="uploadResult" style="display:none;margin-top:12px;padding:12px;border-radius:var(--radius-sm);background:var(--primary-bg);font-size:13px"></div>
     <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('uploadArticleDialog')">Fechar</button><button type="button" class="btn btn-primary" onclick="doUploadArticle()">📥 Carregar Artigo</button></div>
   </div>
@@ -513,6 +515,7 @@
     <button class="close" onclick="closeDialog('questionnaireDialog')">&times;</button>
   </div>
   <div class="form">
+    <div class="field full" id="questionnaireWorkSelectWrap"><label>Trabalho</label><select id="questionnaireWorkSelect" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:var(--radius-xs)"></select></div>
     <div class="field full"><label>Instruções adicionais (opcional)</label><textarea id="questionnairePrompt" rows="3" placeholder="Ex: Questionário sobre hábitos alimentares de estudantes universitários..."></textarea></div>
     <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('questionnaireDialog')">Cancelar</button><button type="button" class="btn btn-primary" onclick="doGenerateQuestionnaire()">📋 Gerar Questionário</button></div>
   </div>

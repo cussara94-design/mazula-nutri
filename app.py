@@ -536,6 +536,7 @@ def works_delete(work_id):
     db.execute("DELETE FROM sections WHERE work_id = ?", (work_id,))
     db.execute("DELETE FROM references_ WHERE work_id = ?", (work_id,))
     db.execute("DELETE FROM chat_history WHERE work_id = ?", (work_id,))
+    db.execute("DELETE FROM article_chunks WHERE work_id = ?", (work_id,))
     db.execute("DELETE FROM works WHERE id = ? AND user_id = ?", (work_id, uid))
     db.commit()
     return jsonify({"message": "Trabalho excluido."})
@@ -737,6 +738,7 @@ def api_all():
             wc += len(c.split()) if c and c.strip() else 0
         w["word_count"] = wc
         total_wc += wc
+        w["article_count"] = db.execute("SELECT COUNT(*) as c FROM article_chunks WHERE work_id = ?", (w["id"],)).fetchone()["c"]
     return jsonify({"works": works, "references": refs, "chat": chat, "total_words": total_wc})
 
 
@@ -1116,7 +1118,7 @@ REGRAS OBRIGATORIAS:
 3. NUNCA invente autores, datas ou dados. Use apenas o que esta nos artigos.
 4. Linguagem formal, academica, terceira pessoa, vocabulario tecnico.
 5. Paragrafos completos com no minimo 3 frases cada.
-6. Inclua citacoes no texto e referencie os artigos用车.
+6. Inclua citacoes no texto e referencie os artigos citados.
 
 ARTIGOS DISPONIVEIS:
 {}
@@ -1136,14 +1138,6 @@ REFERENCIAS:
 @app.route("/api/upload-data", methods=["POST"])
 @login_required
 def upload_data():
-    work_id = request.form.get("work_id")
-    if not work_id:
-        return jsonify({"error": "work_id obrigatorio."}), 400
-    uid = session["user_id"]
-    db = get_db()
-    work = fetch_owned("works", int(work_id), uid)
-    if work is None:
-        return jsonify({"error": "Trabalho nao encontrado."}), 404
     if "file" not in request.files:
         return jsonify({"error": "Nenhum ficheiro enviado."}), 400
     f = request.files["file"]
@@ -1204,8 +1198,8 @@ Analise os dados fornecidos e gere:
 3. Formate tabelas usando o padrao academico (sem linhas verticais, apenas horizontal)
 
 Dados:
-{}
-""".format(norm, table_str[:4000])
+{dados}
+""".format(norm=norm, dados=table_str[:4000])
     user_msg = prompt or "Analise estes dados e gere tabelas em formato academico {} com estatisticas descritivas e interpretação.".format(norm)
     messages = [
         {"role": "system", "content": sys_msg},

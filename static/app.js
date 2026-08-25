@@ -47,7 +47,7 @@ function switchContent(view){
   else if(view==='works'){renderWorksList();document.getElementById('worksView').classList.add('active')}
   else if(view==='refs'){renderRefsFull();document.getElementById('refsView').classList.add('active')}
   else if(view==='ai'){renderAiModes();document.getElementById('aiView').classList.add('active')}
-  else if(view==='tools'){document.getElementById('toolsView').classList.add('active')}
+  else if(view==='tools'){document.getElementById('toolsView').classList.add('active');renderToolsArticles()}
   else{document.getElementById('dashboardView').classList.add('active');renderDashboard()}
 }
 
@@ -485,7 +485,7 @@ function doLogout(){
 }
 
 /* ── Helpers ── */
-function showDialog(id){const d=document.getElementById(id);if(d&&d.showModal)d.showModal()}
+function showDialog(id){const d=document.getElementById(id);if(d&&d.showModal){if(id==='uploadArticleDialog'||id==='questionnaireDialog'){if(!S.works.length){toast('Crie um trabalho primeiro.');return}populateWorkSelect(id==='uploadArticleDialog'?'articleWorkSelect':'questionnaireWorkSelect')}d.showModal()}}
 function closeDialog(id){const d=document.getElementById(id);if(d&&d.close)d.close()}
 function gv(id){return(document.getElementById(id)?.value||'').trim()}
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
@@ -507,14 +507,59 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
 function showLoading(m){const o=document.getElementById('loadingOverlay');o.querySelector('p').textContent=m||'A processar...';o.style.display='flex'}
 function hideLoading(){document.getElementById('loadingOverlay').style.display='none'}
 
-function updateAll(){renderDashboard();renderWorksList();renderEditorRefs();renderRefsFull();renderApaPreview()}
+function updateAll(){renderDashboard();renderWorksList();renderEditorRefs();renderRefsFull();renderApaPreview();renderToolsArticles()}
+
+/* ── Tools: Render imported articles ── */
+async function renderToolsArticles(){
+  const el=document.getElementById('toolsArticlesList');if(!el)return;
+  if(S.works.length===0){el.innerHTML='';return}
+  let html='<div class="panel"><h3 style="margin:0 0 12px">📰 Artigos Importados</h3>';
+  let totalArticles=0;
+  for(const w of S.works){
+    try{
+      const r=await fetch('/api/works/'+w.id+'/articles').then(r=>r.json());
+      if(r.articles&&r.articles.length){
+        html+='<h4 style="margin:14px 0 8px;font-size:13px;color:var(--muted)">'+esc(w.title)+'</h4>';
+        html+='<div style="display:flex;flex-direction:column;gap:6px">';
+        r.articles.forEach(a=>{
+          html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px">';
+          html+='<div><strong>'+esc(a.title||'Sem título')+'</strong> <span style="color:var(--muted);font-size:11px">('+a.chunks+' trechos)</span></div>';
+          html+='<button class="btn btn-sm btn-ghost" onclick="deleteArticle('+w.id+','+a.id+')" title="Remover">🗑</button>';
+          html+='</div>';
+        });
+        html+='</div>';
+        totalArticles+=r.articles.length;
+      }
+    }catch(e){}
+  }
+  if(!totalArticles)html+='<p style="color:var(--muted);font-size:13px;margin:0">Nenhum artigo importado ainda.</p>';
+  html+='</div>';el.innerHTML=html;
+}
+async function deleteArticle(workId,refId){
+  if(!confirm('Remover este artigo?'))return;
+  await fetch('/api/works/'+workId+'/articles/'+refId,{method:'DELETE'}).then(r=>r.json());
+  toast('Artigo removido.');
+  renderToolsArticles();renderRefsFull();
+}
 
 /* ── Upload Article ── */
+function populateWorkSelect(selectId){
+  const sel=document.getElementById(selectId);if(!sel)return;
+  sel.innerHTML='';
+  S.works.forEach(w=>{
+    const opt=document.createElement('option');opt.value=w.id;opt.textContent=w.title||'Sem título';
+    if(S.currentWork&&w.id===S.currentWork.id)opt.selected=true;
+    sel.appendChild(opt);
+  });
+  if(!sel.value&&S.works.length)sel.value=S.works[0].id;
+}
 async function doUploadArticle(){
   const file=document.getElementById('articleFile')?.files[0];
   if(!file){toast('Selecione um ficheiro.');return}
-  const w=S.currentWork;if(!w){toast('Abra um trabalho primeiro.');return}
-  const fd=new FormData();fd.append('file',file);fd.append('work_id',w.id);
+  const sel=document.getElementById('articleWorkSelect');
+  const workId=sel?sel.value:(S.currentWork?.id);
+  if(!workId){toast('Selecione um trabalho.');return}
+  const fd=new FormData();fd.append('file',file);fd.append('work_id',workId);
   const res=document.getElementById('uploadResult');
   showLoading('A importar artigo...');
   try{
@@ -574,10 +619,12 @@ async function doAnalyzeData(){
 /* ── Questionnaire ── */
 async function doGenerateQuestionnaire(){
   const prompt=document.getElementById('questionnairePrompt')?.value||'';
+  const sel=document.getElementById('questionnaireWorkSelect');
+  const workId=sel?sel.value:(S.currentWork?.id);
   showLoading('A gerar questionário...');
   try{
     const r=await fetch('/api/generate-questionnaire',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({work_id:S.currentWork?.id,prompt:prompt})
+      body:JSON.stringify({work_id:workId?parseInt(workId):null,prompt:prompt})
     }).then(r=>r.json());
     hideLoading();
     if(r.error){toast(r.error);return}
