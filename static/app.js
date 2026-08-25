@@ -5,6 +5,7 @@ let _aiAbort=null;
 
 /* ── Init ── */
 window.addEventListener('DOMContentLoaded',async()=>{
+  initDarkMode();
   try{
     const d=await API('/api/all');
     S.works=d.works||[];S.refs=d.references||[];
@@ -14,6 +15,23 @@ window.addEventListener('DOMContentLoaded',async()=>{
   setupToolbar();
   loadProviders();
 });
+
+/* ── Dark Mode ── */
+function initDarkMode(){
+  const saved=localStorage.getItem('theme');
+  if(saved==='dark'){document.documentElement.setAttribute('data-theme','dark');updateDarkUI(true)}
+  else if(!saved&&window.matchMedia('(prefers-color-scheme:dark)').matches){document.documentElement.setAttribute('data-theme','dark');updateDarkUI(true)}
+}
+function toggleDark(){
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  if(isDark){document.documentElement.removeAttribute('data-theme');localStorage.setItem('theme','light');updateDarkUI(false)}
+  else{document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('theme','dark');updateDarkUI(true)}
+}
+function updateDarkUI(isDark){
+  const icon=document.getElementById('darkIcon');const label=document.getElementById('darkLabel');
+  if(icon)icon.textContent=isDark?'☀️':'🌙';
+  if(label)label.textContent=isDark?'Modo Claro':'Modo Escuro';
+}
 
 async function loadProviders(){
   try{
