@@ -1005,6 +1005,214 @@ def api_upgrade():
     return jsonify({"plan": new_plan, "expires": expires, "message": "Plano atualizado com sucesso!"})
 
 
+ADMIN_EMAIL = "cussara94@gmail.com"
+
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if "user_id" not in session:
+            return jsonify({"error": "Nao autenticado."}), 401
+        db = get_db()
+        user = db.execute("SELECT email FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+        if not user or user["email"] != ADMIN_EMAIL:
+            return jsonify({"error": "Sem permissao de administrador."}), 403
+        return f(*args, **kwargs)
+    return wrapped
+
+
+@app.route("/admin")
+def admin_panel():
+    return """<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cussara Academic - Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0f0f14;color:#e4e4e7;padding:20px}
+h1{font-size:22px;margin-bottom:6px;color:#fff}
+h2{font-size:16px;margin:24px 0 12px;color:#a78bfa}
+.sub{color:#71717a;font-size:13px;margin-bottom:20px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.stat{background:#1a1a24;border:1px solid #27272a;border-radius:10px;padding:16px;text-align:center}
+.stat .num{font-size:28px;font-weight:800;color:#a78bfa}
+.stat .label{font-size:12px;color:#71717a;margin-top:4px}
+table{width:100%;border-collapse:collapse;background:#1a1a24;border-radius:10px;overflow:hidden;border:1px solid #27272a}
+th{background:#14141c;padding:12px 16px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#71717a;border-bottom:1px solid #27272a}
+td{padding:10px 16px;border-bottom:1px solid #1f1f2e;font-size:13px}
+tr:last-child td{border-bottom:none}
+tr:hover{background:#1f1f2e}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-free{background:#27272a;color:#71717a}
+.badge-pro{background:rgba(124,92,255,.2);color:#a78bfa}
+.badge-premium{background:rgba(255,214,10,.2);color:#fbbf24}
+select,button,input{font-family:inherit}
+select{background:#14141c;color:#e4e4e7;border:1px solid #27272a;padding:6px 10px;border-radius:6px;font-size:12px}
+.btn{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-primary{background:#7c5cff;color:#fff}.btn-primary:hover{background:#6a4de6}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-danger{background:#ef4444;color:#fff}.btn-danger:hover{background:#dc2626}
+#login{max-width:400px;margin:100px auto;background:#1a1a24;border:1px solid #27272a;border-radius:12px;padding:32px}
+#login h1{text-align:center;margin-bottom:20px}
+#login input{width:100%;padding:10px 14px;background:#14141c;color:#fff;border:1px solid #27272a;border-radius:8px;font-size:14px;margin-bottom:12px}
+#login .btn{width:100%;padding:12px;font-size:14px}
+.toast{position:fixed;top:20px;right:20px;background:#1a1a24;border:1px solid #27272a;border-radius:8px;padding:12px 20px;font-size:13px;z-index:9999;display:none}
+.toast.show{display:block;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.filter-bar{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+.filter-bar input{flex:1;padding:8px 14px;background:#14141c;color:#fff;border:1px solid #27272a;border-radius:8px;font-size:13px}
+@media(max-width:768px){.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+
+<div id="login">
+  <h1>🔒 Admin Panel</h1>
+  <p style="color:#71717a;text-align:center;font-size:13px;margin-bottom:16px">Acesse com a conta de administrador</p>
+  <input type="email" id="loginEmail" placeholder="Email">
+  <input type="password" id="loginPassword" placeholder="Senha">
+  <button class="btn btn-primary" onclick="doLogin()">Entrar</button>
+</div>
+
+<div id="admin" style="display:none">
+  <h1>⚙ Cussara Academic — Admin</h1>
+  <p class="sub">Gerir utilizadores, planos e pagamentos</p>
+  <div class="stats">
+    <div class="stat"><div class="num" id="totalUsers">0</div><div class="label">Utilizadores</div></div>
+    <div class="stat"><div class="num" id="totalPro">0</div><div class="label">Pro</div></div>
+    <div class="stat"><div class="num" id="totalPremium">0</div><div class="label">Premium</div></div>
+    <div class="stat"><div class="num" id="totalRevenue">0</div><div class="label">Receita (MZN)</div></div>
+  </div>
+  <div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="Procurar por nome ou email..." oninput="filterUsers()">
+    <select id="planFilter" onchange="filterUsers()"><option value="">Todos os planos</option><option value="free">Gratuito</option><option value="pro">Pro</option><option value="premium">Premium</option></select>
+    <button class="btn btn-primary" onclick="loadUsers()">↻ Atualizar</button>
+  </div>
+  <table>
+    <thead><tr><th>ID</th><th>Nome</th><th>Email</th><th>Plano</th><th>Expira</th><th>Trabalhos</th><th>Criado</th><th>Acao</th></tr></thead>
+    <tbody id="usersTable"></tbody>
+  </table>
+</div>
+
+<script>
+let TOKEN='';
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.className='toast show';setTimeout(()=>t.className='toast',3000)}
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value;
+  const pass=document.getElementById('loginPassword').value;
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    const d=await r.json();
+    if(d.error){toast(d.error);return}
+    TOKEN=d.token||'';
+    document.getElementById('login').style.display='none';
+    document.getElementById('admin').style.display='block';
+    loadUsers();
+  }catch(e){toast('Erro: '+e.message)}
+}
+async function loadUsers(){
+  try{
+    const r=await fetch('/api/admin/users').then(r=>r.json());
+    if(r.error){toast(r.error);return}
+    const users=r.users||[];
+    document.getElementById('totalUsers').textContent=r.stats.total;
+    document.getElementById('totalPro').textContent=r.stats.pro;
+    document.getElementById('totalPremium').textContent=r.stats.premium;
+    document.getElementById('totalRevenue').textContent=((r.stats.pro*4497)+(r.stats.premium*9497)).toLocaleString('pt-BR');
+    renderUsers(users);
+  }catch(e){toast('Erro: '+e.message)}
+}
+function renderUsers(users){
+  const tb=document.getElementById('usersTable');
+  if(!users.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:#71717a">Nenhum utilizador encontrado</td></tr>';return}
+  tb.innerHTML=users.map(u=>`<tr>
+    <td>${u.id}</td>
+    <td><strong>${esc(u.name)}</strong></td>
+    <td>${esc(u.email)}</td>
+    <td><span class="badge badge-${u.plan}">${u.plan==='premium'?'Premium':u.plan==='pro'?'Pro':'Gratuito'}</span></td>
+    <td>${u.plan_expires?new Date(u.plan_expires).toLocaleDateString('pt-BR'):'—'}</td>
+    <td>${u.works_count}</td>
+    <td>${new Date(u.created_at).toLocaleDateString('pt-BR')}</td>
+    <td>
+      <select id="plan_${u.id}" style="margin-right:6px">
+        <option value="free" ${u.plan==='free'?'selected':''}>Gratuito</option>
+        <option value="pro" ${u.plan==='pro'?'selected':''}>Pro</option>
+        <option value="premium" ${u.plan==='premium'?'selected':''}>Premium</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="setPlan(${u.id})">Ativar</button>
+      ${u.plan!=='free'?`<button class="btn btn-danger btn-sm" onclick="removePlan(${u.id})">Remover</button>`:''}
+    </td>
+  </tr>`).join('');
+}
+function filterUsers(){
+  const q=(document.getElementById('searchInput').value||'').toLowerCase();
+  const pf=document.getElementById('planFilter').value;
+  document.querySelectorAll('#usersTable tr').forEach(tr=>{
+    const text=tr.textContent.toLowerCase();
+    const matchQ=!q||text.includes(q);
+    const matchP=!pf||tr.querySelector('.badge')?.classList.contains('badge-'+pf);
+    tr.style.display=(matchQ&&matchP)?'':'none';
+  });
+}
+async function setPlan(uid){
+  const plan=document.getElementById('plan_'+uid).value;
+  try{
+    const r=await fetch('/api/admin/set-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid,plan:plan})}).then(r=>r.json());
+    if(r.error){toast(r.error);return}
+    toast(r.message||'Plano atualizado!');loadUsers();
+  }catch(e){toast('Erro: '+e.message)}
+}
+async function removePlan(uid){
+  if(!confirm('Remover plano deste utilizador?'))return;
+  try{
+    const r=await fetch('/api/admin/set-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid,plan:'free'})}).then(r=>r.json());
+    if(r.error){toast(r.error);return}
+    toast('Plano removido!');loadUsers();
+  }catch(e){toast('Erro: '+e.message)}
+}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+</script>
+</body></html>"""
+
+
+@app.route("/api/admin/users", methods=["GET"])
+@admin_required
+def admin_users():
+    db = get_db()
+    users = rows_to_list(db.execute("""
+        SELECT u.id, u.name, u.email, u.plan, u.plan_expires, u.created_at,
+               (SELECT COUNT(*) FROM works WHERE user_id = u.id) as works_count
+        FROM users u ORDER BY u.id DESC
+    """).fetchall())
+    stats = row_to_dict(db.execute("SELECT COUNT(*) as total FROM users").fetchone())
+    stats["pro"] = db.execute("SELECT COUNT(*) as c FROM users WHERE plan='pro'").fetchone()["c"]
+    stats["premium"] = db.execute("SELECT COUNT(*) as c FROM users WHERE plan='premium'").fetchone()["c"]
+    return jsonify({"users": users, "stats": stats})
+
+
+@app.route("/api/admin/set-plan", methods=["POST"])
+@admin_required
+def admin_set_plan():
+    data = json_body()
+    uid = data.get("user_id")
+    plan = (data.get("plan") or "free").strip()
+    if plan not in PLANS:
+        return jsonify({"error": "Plano invalido."}), 400
+    db = get_db()
+    user = db.execute("SELECT id, name, email FROM users WHERE id = ?", (int(uid),)).fetchone()
+    if not user:
+        return jsonify({"error": "Utilizador nao encontrado."}), 404
+    expires = None
+    if plan != "free":
+        from datetime import datetime, timedelta
+        expires = (datetime.now() + timedelta(days=30)).isoformat()
+    db.execute("UPDATE users SET plan = ?, plan_expires = ? WHERE id = ?", (plan, expires, int(uid)))
+    db.commit()
+    return jsonify({"message": f"Plano de {user['name']} atualizado para {plan.upper()}!"})
+
+
 @app.route("/api/ai/providers", methods=["GET"])
 @login_required
 def api_ai_providers():
