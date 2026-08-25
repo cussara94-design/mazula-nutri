@@ -474,6 +474,9 @@ dialog::backdrop{background:rgba(26,26,46,.5);backdrop-filter:blur(4px)}
 [data-theme="dark"] .save-status.error{background:rgba(255,107,107,.12)}
 [data-theme="dark"] select option{background:var(--white);color:var(--ink)}
 [data-theme="dark"] .toast{background:#e8e5f0;color:#1e1e3a}
+[data-theme="dark"] .export-menu{background:var(--white);border-color:var(--line)}
+[data-theme="dark"] .export-menu button{color:var(--ink)}
+[data-theme="dark"] .export-menu button:hover{background:var(--primary-bg)}
 
 /* ══════ ANIMATIONS ══════ */
 .view.active{animation:fadeIn .25s ease}

@@ -1430,11 +1430,22 @@ def export_work(work_id):
     style.paragraph_format.space_after = Pt(0)
 
     title = work.get("title", "Trabalho Academico")
+
+    p_institution = doc.add_paragraph()
+    p_institution.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p_institution.add_run("UNIVERSIDADE / INSTITUICAO")
+    r.bold = True
+    r.font.name = 'Times New Roman'
+    r.font.size = Pt(14)
+
+    doc.add_paragraph()
+    doc.add_paragraph()
+
     p_title = doc.add_paragraph()
     p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p_title.add_run(title.upper())
     run.bold = True
-    run.font.size = Pt(16)
+    run.font.size = Pt(18)
     run.font.name = 'Times New Roman'
 
     doc.add_paragraph()
@@ -1445,7 +1456,10 @@ def export_work(work_id):
         r = p.add_run("Tema: ")
         r.bold = True
         r.font.name = 'Times New Roman'
-        p.add_run(work["theme"]).font.name = 'Times New Roman'
+        r.font.size = Pt(12)
+        run2 = p.add_run(work["theme"])
+        run2.font.name = 'Times New Roman'
+        run2.font.size = Pt(12)
 
     if work.get("area"):
         p = doc.add_paragraph()
@@ -1453,7 +1467,43 @@ def export_work(work_id):
         r = p.add_run("Area: ")
         r.bold = True
         r.font.name = 'Times New Roman'
-        p.add_run(work["area"]).font.name = 'Times New Roman'
+        r.font.size = Pt(12)
+        run2 = p.add_run(work["area"])
+        run2.font.name = 'Times New Roman'
+        run2.font.size = Pt(12)
+
+    doc.add_paragraph()
+    doc.add_paragraph()
+
+    p_author = doc.add_paragraph()
+    p_author.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p_author.add_run("Autor: {}".format(session.get("user_name", "Academico")))
+    r.font.name = 'Times New Roman'
+    r.font.size = Pt(12)
+
+    p_date = doc.add_paragraph()
+    p_date.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p_date.add_run(datetime.now().strftime("%Y"))
+    r.font.name = 'Times New Roman'
+    r.font.size = Pt(12)
+
+    doc.add_page_break()
+
+    toc_heading = doc.add_heading("SUMARIO", level=1)
+    for run in toc_heading.runs:
+        run.font.name = 'Times New Roman'
+        run.font.size = Pt(14)
+        run.font.color.rgb = RGBColor(0, 0, 0)
+    for i, s in enumerate(sections):
+        content = s.get("content") or ""
+        if content.strip():
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            r = p.add_run("{}. {}".format(i + 1, s["title"]))
+            r.font.name = 'Times New Roman'
+            r.font.size = Pt(12)
+
+    doc.add_page_break()
 
     if work.get("keywords"):
         p = doc.add_paragraph()
@@ -1461,16 +1511,11 @@ def export_work(work_id):
         r = p.add_run("Palavras-chave: ")
         r.bold = True
         r.font.name = 'Times New Roman'
-        p.add_run(work["keywords"]).font.name = 'Times New Roman'
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run("Total de palavras: ")
-    r.bold = True
-    r.font.name = 'Times New Roman'
-    p.add_run(str(total_words)).font.name = 'Times New Roman'
-
-    doc.add_page_break()
+        r.font.size = Pt(12)
+        run2 = p.add_run(work["keywords"])
+        run2.font.name = 'Times New Roman'
+        run2.font.size = Pt(12)
+        doc.add_page_break()
 
     for s in sections:
         h = doc.add_heading(s["title"], level=1)
@@ -1540,6 +1585,135 @@ def export_work(work_id):
     filename = re.sub(r'[^\w\s-]', '', title.replace(" ", "_"))[:50] + ".docx"
     return buf.getvalue(), 200, {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": "attachment; filename={}".format(filename),
+    }
+
+
+@app.route("/api/export/<int:work_id>/pdf")
+@login_required
+def export_work_pdf(work_id):
+    from fpdf import FPDF
+
+    uid = session["user_id"]
+    db = get_db()
+    work, ctx = get_work_context(db, work_id, uid)
+    if work is None:
+        return jsonify({"error": "Trabalho nao encontrado."}), 404
+    sections = rows_to_list(
+        db.execute("SELECT * FROM sections WHERE work_id = ? ORDER BY order_index", (work_id,)).fetchall()
+    )
+    refs = rows_to_list(
+        db.execute("SELECT * FROM references_ WHERE work_id = ? ORDER BY authors", (work_id,)).fetchall()
+    )
+    total_words = 0
+    for s in sections:
+        c = s.get("content") or ""
+        s["word_count"] = len(c.split()) if c.strip() else 0
+        total_words += s["word_count"]
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=25)
+    pdf.set_margins(30, 25, 20)
+
+    font_regular = os.path.join(BASE_DIR, "static", "fonts", "DejaVuSans.ttf")
+    font_bold = os.path.join(BASE_DIR, "static", "fonts", "DejaVuSans-Bold.ttf")
+    has_custom_font = os.path.exists(font_regular) and os.path.exists(font_bold)
+
+    if has_custom_font:
+        pdf.add_font("DejaVu", "", font_regular, uni=True)
+        pdf.add_font("DejaVu", "B", font_bold, uni=True)
+        regular_font = "DejaVu"
+        bold_font = "DejaVu"
+    else:
+        regular_font = "Helvetica"
+        bold_font = "Helvetica"
+
+    pdf.add_page()
+    pdf.set_font(bold_font, "B", 18)
+    pdf.ln(40)
+    title_text = (work.get("title") or "Trabalho Academico").upper()
+    pdf.multi_cell(0, 12, title_text, align="C")
+    pdf.ln(12)
+
+    if work.get("theme"):
+        pdf.set_font(regular_font, "", 12)
+        pdf.cell(0, 8, "Tema: {}".format(work["theme"]), align="C", new_x="LMARGIN", new_y="NEXT")
+    if work.get("area"):
+        pdf.cell(0, 8, "Area: {}".format(work["area"]), align="C", new_x="LMARGIN", new_y="NEXT")
+    if work.get("keywords"):
+        pdf.ln(4)
+        pdf.set_font(regular_font, "", 10)
+        pdf.multi_cell(0, 6, "Palavras-chave: {}".format(work["keywords"]), align="C")
+    pdf.ln(10)
+    pdf.set_font(regular_font, "", 10)
+    pdf.cell(0, 8, "Total de palavras: {}".format(total_words), align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+    pdf.set_font(regular_font, "", 9)
+    pdf.cell(0, 8, "Gerado por Cussara Academic - {}".format(datetime.now().strftime("%d/%m/%Y")), align="C", new_x="LMARGIN", new_y="NEXT")
+
+    if sections and any((s.get("content") or "").strip() for s in sections):
+        pdf.add_page()
+        pdf.set_font(bold_font, "B", 14)
+        pdf.cell(0, 10, "SUMARIO", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(6)
+        pdf.set_font(regular_font, "", 11)
+        for i, s in enumerate(sections):
+            content = s.get("content") or ""
+            if content.strip():
+                pdf.cell(0, 8, "{}. {}".format(i + 1, s["title"]), new_x="LMARGIN", new_y="NEXT")
+
+    for i, s in enumerate(sections):
+        content = s.get("content") or ""
+        clean = re.sub(r'<[^>]+>', ' ', content)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        if not clean:
+            continue
+        pdf.add_page()
+        pdf.set_font(bold_font, "B", 14)
+        pdf.cell(0, 10, "{}. {}".format(i + 1, s["title"]), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(4)
+        pdf.set_font(regular_font, "", 12)
+        paragraphs = [p.strip() for p in clean.split('\n') if p.strip()]
+        for para in paragraphs:
+            pdf.multi_cell(0, 7, "    " + para)
+            pdf.ln(2)
+
+    if refs:
+        pdf.add_page()
+        pdf.set_font(bold_font, "B", 14)
+        pdf.cell(0, 10, "REFERENCIAS BIBLIOGRAFICAS", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(6)
+        pdf.set_font(regular_font, "", 11)
+        for r in refs:
+            authors = (r.get("authors") or "").strip().rstrip(".")
+            year = r.get("year") or "s.d."
+            title_ref = (r.get("title") or "").strip().rstrip(".")
+            source = (r.get("source") or "").strip()
+            doi = (r.get("doi") or "").strip()
+            publisher = (r.get("publisher") or "").strip()
+            pages = (r.get("pages") or "").strip()
+            apa = "{} ({}). {}. ".format(authors, year, title_ref)
+            if source:
+                if pages:
+                    apa += "{}. pp. {}. ".format(source, pages)
+                else:
+                    apa += "{}. ".format(source)
+            if publisher:
+                apa += "{}. ".format(publisher)
+            if doi:
+                apa += "https://doi.org/{}".format(doi)
+            x_before = pdf.get_x()
+            pdf.set_x(x_before + 8)
+            pdf.multi_cell(pdf.w - pdf.r_margin - pdf.get_x(), 6, apa.strip())
+            pdf.ln(2)
+
+    buf = io.BytesIO()
+    pdf.output(buf)
+    buf.seek(0)
+
+    filename = re.sub(r'[^\w\s-]', '', (work.get("title") or "trabalho").replace(" ", "_"))[:50] + ".pdf"
+    return buf.getvalue(), 200, {
+        "Content-Type": "application/pdf",
         "Content-Disposition": "attachment; filename={}".format(filename),
     }
 

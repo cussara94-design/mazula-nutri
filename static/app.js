@@ -495,10 +495,20 @@ async function aiRequest(mode,prompt,lang,tone){
 }
 
 /* ── Export ── */
-function exportWork(){
+function toggleExportMenu(){
+  const m=document.getElementById('exportMenu');if(!m)return;
+  m.style.display=m.style.display==='none'?'block':'none';
+  if(m.style.display==='block'){
+    const close=(e)=>{if(!e.target.closest('.export-dropdown')){m.style.display='none';document.removeEventListener('click',close)}};
+    setTimeout(()=>document.addEventListener('click',close),0);
+  }
+}
+function exportWork(fmt){
   const w=S.currentWork;if(!w){toast('Abra um trabalho primeiro');return}
-  window.open('/api/export/'+w.id,'_blank');
-  toast('Export iniciado...');
+  const url=fmt==='pdf'?'/api/export/'+w.id+'/pdf':'/api/export/'+w.id;
+  window.open(url,'_blank');
+  toast('Export '+(fmt==='pdf'?'PDF':'Word')+' iniciado...');
+  const m=document.getElementById('exportMenu');if(m)m.style.display='none';
 }
 
 /* ── Auth ── */

@@ -6,3 +6,4 @@ bleach
 python-docx
 PyPDF2
 openpyxl
+fpdf2

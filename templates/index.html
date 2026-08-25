@@ -344,7 +344,13 @@
             <div class="editor-actions">
               <span class="save-status" id="saveStatus">Guardado ✓</span>
               <button class="btn btn-sm" onclick="doAutoSave()" title="Guardar agora">💾 Guardar</button>
-              <button class="btn btn-sm" onclick="exportWork()" title="Exportar Word">📥 Exportar</button>
+              <div class="export-dropdown" style="position:relative;display:inline-block">
+                <button class="btn btn-sm" onclick="toggleExportMenu()" title="Exportar trabalho">📥 Exportar</button>
+                <div id="exportMenu" class="export-menu" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);z-index:50;min-width:160px;overflow:hidden">
+                  <button onclick="exportWork('docx')" style="display:block;width:100%;padding:10px 14px;border:0;background:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer">📄 Word (.docx)</button>
+                  <button onclick="exportWork('pdf')" style="display:block;width:100%;padding:10px 14px;border:0;background:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;border-top:1px solid var(--line)">📕 PDF (.pdf)</button>
+                </div>
+              </div>
               <button class="btn btn-sm btn-outline" onclick="openDoiDialog()" title="Importar referências">📚 DOI/ISBN</button>
               <button class="btn btn-sm btn-outline" onclick="showDialog('uploadArticleDialog')" title="Importar artigo PDF">📄 Artigo</button>
               <button class="btn btn-sm" onclick="openChatDialog()" title="Chat IA">🤖 Chat</button>
