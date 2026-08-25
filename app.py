@@ -37,6 +37,8 @@ SCHEMA = [
         name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
+        plan TEXT NOT NULL DEFAULT 'free',
+        plan_expires TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )""",
     """CREATE TABLE IF NOT EXISTS works (
@@ -101,6 +103,42 @@ SCHEMA = [
     "CREATE INDEX IF NOT EXISTS idx_chat_work ON chat_history(work_id)",
     "CREATE INDEX IF NOT EXISTS idx_chunks_work ON article_chunks(work_id)",
 ]
+
+PLANS = {
+    "free": {
+        "label": "Gratuito",
+        "price": 0,
+        "currency": "MZN",
+        "max_works": 3,
+        "max_exports_month": 5,
+        "max_ai_requests_day": 20,
+        "max_refs": 20,
+        "max_articles": 3,
+        "features": ["3 trabalhos", "5 exports/mês", "20 pedidos IA/dia", "20 referências", "3 artigos", "Export Word e PDF"],
+    },
+    "pro": {
+        "label": "Pro",
+        "price": 4497,
+        "currency": "MZN",
+        "max_works": 20,
+        "max_exports_month": 200,
+        "max_ai_requests_day": 500,
+        "max_refs": 500,
+        "max_articles": 50,
+        "features": ["20 trabalhos", "200 exports/mês", "500 pedidos IA/dia", "500 referências", "50 artigos", "Colaboração", "Suporte prioritário"],
+    },
+    "premium": {
+        "label": "Premium",
+        "price": 9497,
+        "currency": "MZN",
+        "max_works": -1,
+        "max_exports_month": -1,
+        "max_ai_requests_day": -1,
+        "max_refs": -1,
+        "max_articles": -1,
+        "features": ["Trabalhos ilimitados", "Exports ilimitados", "IA ilimitada", "Referências ilimitadas", "Artigos ilimitados", "Todos os recursos", "API personalizada", "Suporte 24/7"],
+    },
+}
 
 WORK_TYPES = {
     "monografia": {
@@ -252,6 +290,18 @@ def init_db():
     except Exception:
         pass
     try:
+        db.execute("ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'")
+    except Exception:
+        pass
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN plan_expires TEXT")
+    except Exception:
+        pass
+    try:
+        db.execute("CREATE TABLE IF NOT EXISTS usage_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, action TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))")
+    except Exception:
+        pass
+    try:
         db.execute("CREATE TABLE IF NOT EXISTS chat_history (id INTEGER PRIMARY KEY AUTOINCREMENT, work_id INTEGER NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT)")
     except Exception:
         pass
@@ -271,6 +321,96 @@ def row_to_dict(row):
         return dict(row)
     except Exception:
         return None
+
+
+def get_user_plan(user_id):
+    db = get_db()
+    user = db.execute("SELECT plan, plan_expires FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        return "free", None
+    plan = user["plan"] or "free"
+    expires = user["plan_expires"]
+    if expires:
+        try:
+            from datetime import datetime as _dt
+            exp = _dt.fromisoformat(expires)
+            if _dt.now() > exp:
+                db.execute("UPDATE users SET plan = 'free' WHERE id = ?", (user_id,))
+                db.commit()
+                return "free", None
+        except Exception:
+            pass
+    return plan, expires
+
+
+def get_plan_config(plan_name):
+    return PLANS.get(plan_name, PLANS["free"])
+
+
+def check_limit(user_id, action):
+    plan_name, _ = get_user_plan(user_id)
+    cfg = get_plan_config(plan_name)
+    db = get_db()
+    uid = int(user_id)
+
+    if action == "create_work":
+        limit = cfg["max_works"]
+        if limit < 0:
+            return True, limit, 0
+        count = db.execute("SELECT COUNT(*) as c FROM works WHERE user_id = ?", (uid,)).fetchone()["c"]
+        return count < limit, limit, count
+
+    if action == "export":
+        limit = cfg["max_exports_month"]
+        if limit < 0:
+            return True, limit, 0
+        from datetime import datetime, timedelta
+        month_start = datetime.now().replace(day=1).isoformat()
+        count = db.execute("SELECT COUNT(*) as c FROM usage_log WHERE user_id = ? AND action = 'export' AND created_at >= ?", (uid, month_start)).fetchone()["c"]
+        return count < limit, limit, count
+
+    if action == "ai_request":
+        limit = cfg["max_ai_requests_day"]
+        if limit < 0:
+            return True, limit, 0
+        from datetime import datetime, timedelta
+        day_start = (datetime.now() - timedelta(hours=datetime.now().hour, minutes=datetime.now().minute)).isoformat()
+        count = db.execute("SELECT COUNT(*) as c FROM usage_log WHERE user_id = ? AND action = 'ai_request' AND created_at >= ?", (uid, day_start)).fetchone()["c"]
+        return count < limit, limit, count
+
+    return True, -1, 0
+
+
+def log_usage(user_id, action):
+    db = get_db()
+    db.execute("INSERT INTO usage_log (user_id, action, created_at) VALUES (?, ?, ?)", (int(user_id), action, now_str()))
+    db.commit()
+
+
+def get_usage_stats(user_id):
+    db = get_db()
+    uid = int(user_id)
+    from datetime import datetime, timedelta
+    month_start = datetime.now().replace(day=1).isoformat()
+    day_start = (datetime.now() - timedelta(hours=datetime.now().hour, minutes=datetime.now().minute)).isoformat()
+
+    works_count = db.execute("SELECT COUNT(*) as c FROM works WHERE user_id = ?", (uid,)).fetchone()["c"]
+    exports_month = db.execute("SELECT COUNT(*) as c FROM usage_log WHERE user_id = ? AND action = 'export' AND created_at >= ?", (uid, month_start)).fetchone()["c"]
+    ai_today = db.execute("SELECT COUNT(*) as c FROM usage_log WHERE user_id = ? AND action = 'ai_request' AND created_at >= ?", (uid, day_start)).fetchone()["c"]
+    refs_count = db.execute("SELECT COUNT(*) as c FROM references_ WHERE work_id IN (SELECT id FROM works WHERE user_id = ?)", (uid,)).fetchone()["c"]
+
+    plan_name, expires = get_user_plan(uid)
+    cfg = get_plan_config(plan_name)
+
+    return {
+        "plan": plan_name,
+        "plan_label": cfg["label"],
+        "plan_expires": expires,
+        "works": {"used": works_count, "limit": cfg["max_works"]},
+        "exports": {"used": exports_month, "limit": cfg["max_exports_month"]},
+        "ai_requests": {"used": ai_today, "limit": cfg["max_ai_requests_day"]},
+        "refs": {"used": refs_count, "limit": cfg["max_refs"]},
+    }
 
 
 def rows_to_list(rows):
@@ -490,6 +630,9 @@ def works_list():
 @login_required
 def works_create():
     uid = session["user_id"]
+    allowed, limit, used = check_limit(uid, "create_work")
+    if not allowed:
+        return jsonify({"error": f"Limite de trabalhos atingido ({limit}). Faca upgrade do seu plano.", "limit_reached": True}), 403
     data = json_body()
     title = (data.get("title") or "").strip()
     if not title:
@@ -831,6 +974,37 @@ def api_all():
     return jsonify({"works": works, "references": refs, "chat": chat, "total_words": total_wc})
 
 
+@app.route("/api/plans", methods=["GET"])
+@login_required
+def api_plans():
+    return jsonify({"plans": PLANS})
+
+
+@app.route("/api/usage", methods=["GET"])
+@login_required
+def api_usage():
+    uid = session["user_id"]
+    return jsonify(get_usage_stats(uid))
+
+
+@app.route("/api/upgrade", methods=["POST"])
+@login_required
+def api_upgrade():
+    uid = session["user_id"]
+    data = json_body()
+    new_plan = (data.get("plan") or "").strip()
+    if new_plan not in PLANS:
+        return jsonify({"error": "Plano invalido."}), 400
+    if new_plan == "free":
+        return jsonify({"error": "Nao e possivel voltar ao plano gratuito aqui."}), 400
+    from datetime import datetime, timedelta
+    expires = (datetime.now() + timedelta(days=30)).isoformat()
+    db = get_db()
+    db.execute("UPDATE users SET plan = ?, plan_expires = ? WHERE id = ?", (new_plan, expires, uid))
+    db.commit()
+    return jsonify({"plan": new_plan, "expires": expires, "message": "Plano atualizado com sucesso!"})
+
+
 @app.route("/api/ai/providers", methods=["GET"])
 @login_required
 def api_ai_providers():
@@ -856,6 +1030,10 @@ def api_ai():
     tone = data.get("tone") or "Academico"
     provider = data.get("provider") or None
     uid = session["user_id"]
+    allowed, limit, used = check_limit(uid, "ai_request")
+    if not allowed:
+        return jsonify({"error": f"Limite de pedidos IA do dia atingido ({limit}). Faca upgrade.", "limit_reached": True}), 403
+    log_usage(uid, "ai_request")
     db = get_db()
     work_ctx = ""
     if work_id:
@@ -1583,6 +1761,10 @@ def export_work(work_id):
     from docx.enum.section import WD_ORIENT
 
     uid = session["user_id"]
+    allowed, limit, used = check_limit(uid, "export")
+    if not allowed:
+        return jsonify({"error": f"Limite de exports do mes atingido ({limit}). Faca upgrade.", "limit_reached": True}), 403
+    log_usage(uid, "export")
     db = get_db()
     work, ctx = get_work_context(db, work_id, uid)
     if work is None:
@@ -1780,6 +1962,10 @@ def export_work_pdf(work_id):
     from fpdf import FPDF
 
     uid = session["user_id"]
+    allowed, limit, used = check_limit(uid, "export")
+    if not allowed:
+        return jsonify({"error": f"Limite de exports do mes atingido ({limit}). Faca upgrade.", "limit_reached": True}), 403
+    log_usage(uid, "export")
     db = get_db()
     work, ctx = get_work_context(db, work_id, uid)
     if work is None:

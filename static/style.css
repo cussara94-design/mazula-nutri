@@ -372,6 +372,8 @@ dialog::backdrop{background:rgba(26,26,46,.5);backdrop-filter:blur(4px)}
 .lp-no{color:var(--red)}.lp-yes{color:var(--green);font-weight:600}
 
 .lp-pricing-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;max-width:740px;margin:0 auto}
+.lp-pricing-grid.lp-pricing-3{grid-template-columns:repeat(3,1fr);max-width:1000px}
+@media(max-width:768px){.lp-pricing-grid.lp-pricing-3{grid-template-columns:1fr;max-width:400px}}
 .lp-price-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:32px;position:relative;transition:all .25s}
 .lp-price-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
 .lp-price-featured{border-color:var(--primary);box-shadow:var(--shadow-lg);transform:scale(1.03)}

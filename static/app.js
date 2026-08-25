@@ -184,13 +184,14 @@ async function createWork(){
   try{
     const r=await fetch('/api/works',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const d=await r.json();
+    if(d.limit_reached){hideLoading();handleLimitError(d);return}
     const w=d.work||d;
     if(w&&w.id){
       S.works.unshift(w);
       document.getElementById('newWorkForm').reset();
       closeDialog('newWorkDialog');
       toast('Trabalho criado! Comece a escrever.');
-      openWork(w.id);
+      openWork(w.id);loadUsage();
     }else{toast('Erro ao criar: '+JSON.stringify(d))}
   }catch(e){toast('Erro: '+e.message)}
   hideLoading();
@@ -354,6 +355,7 @@ async function generateSection(i){
     }else{
       d=await aiRequest('generate',prompt,'Português','Académico');
     }
+    if(!d)return;
     if(d.result){
       const clean=d.result.replace(/<[^>]+>/g,'');
       sec.content=clean.replace(/\n/g,'<br>');
@@ -501,6 +503,7 @@ async function doAiRequest(){
   showLoading('A processar com IA...');
   try{
     const d=await aiRequest(mode,prompt,lang,tone);
+    if(!d){hideLoading();return}
     if(d.result){
       document.getElementById('aiResult').style.display='block';
       document.getElementById('aiResultText').textContent=d.result;
@@ -519,7 +522,10 @@ function getProvider(){const s=document.getElementById('aiProvider');return s?s.
 async function aiRequest(mode,prompt,lang,tone){
   const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({mode,prompt,language:lang||'Português',tone:tone||'Académico',work_id:S.currentWork?.id,provider:getProvider()})
-  });return await r.json();
+  });
+  const d=await r.json();
+  if(d.limit_reached){handleLimitError(d);return null}
+  return d;
 }
 
 /* ── Export ── */
@@ -531,11 +537,26 @@ function toggleExportMenu(){
     setTimeout(()=>document.addEventListener('click',close),0);
   }
 }
-function exportWork(fmt){
+async function exportWork(fmt){
   const w=S.currentWork;if(!w){toast('Abra um trabalho primeiro');return}
   const url=fmt==='pdf'?'/api/export/'+w.id+'/pdf':'/api/export/'+w.id;
-  window.open(url,'_blank');
-  toast('Export '+(fmt==='pdf'?'PDF':'Word')+' iniciado...');
+  showLoading('A exportar...');
+  try{
+    const r=await fetch(url);
+    if(!r.ok){
+      const d=await r.json().catch(()=>({error:'Erro ao exportar'}));
+      hideLoading();
+      if(d.limit_reached){handleLimitError(d);return}
+      toast(d.error||'Erro ao exportar');return;
+    }
+    const blob=await r.blob();
+    const ext=fmt==='pdf'?'.pdf':'.docx';
+    const ct=r.headers.get('content-type')||'';
+    const name=(w.title||'trabalho')+(fmt==='pdf'?'.pdf':ct.includes('pdf')?'.pdf':'.docx');
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);
+    toast('Exportado com sucesso!');
+  }catch(e){toast('Erro: '+e.message)}
+  hideLoading();
   const m=document.getElementById('exportMenu');if(m)m.style.display='none';
 }
 
@@ -745,6 +766,7 @@ async function doSuggestTitle(){
       body:JSON.stringify({theme:theme,area:w?.area||'',work_type:w?.work_type||'monografia',provider:getProvider()})
     }).then(r=>r.json());
     hideLoading();
+    if(r.limit_reached){handleLimitError(r);return}
     if(r.error){toast(r.error);return}
     const aiResult=document.getElementById('aiResult');const aiText=document.getElementById('aiResultText');
     if(aiResult&&aiText){
@@ -764,6 +786,7 @@ async function doGenerateAbstract(){
       body:JSON.stringify({work_id:S.currentWork?.id,provider:getProvider()})
     }).then(r=>r.json());
     hideLoading();
+    if(r.limit_reached){handleLimitError(r);return}
     if(r.error){toast(r.error);return}
     const aiResult=document.getElementById('aiResult');const aiText=document.getElementById('aiResultText');
     if(aiResult&&aiText){
@@ -786,6 +809,7 @@ async function doGenerateKeywords(){
       body:JSON.stringify({theme:theme,area:w?.area||'',provider:getProvider()})
     }).then(r=>r.json());
     hideLoading();
+    if(r.limit_reached){handleLimitError(r);return}
     if(r.error){toast(r.error);return}
     const aiResult=document.getElementById('aiResult');const aiText=document.getElementById('aiResultText');
     if(aiResult&&aiText){
@@ -808,6 +832,7 @@ async function doImageAnalysis(){
   try{
     const r=await fetch('/api/ai/image-analysis',{method:'POST',body:fd}).then(r=>r.json());
     hideLoading();
+    if(r.limit_reached){handleLimitError(r);return}
     if(r.error){res.innerHTML='<span style="color:var(--red)">❌ '+esc(r.error)+'</span>';res.style.display='block';return}
     res.textContent=r.result;res.style.display='block';
     toast('Imagem analisada!');
@@ -826,6 +851,7 @@ async function doSimilarityCheck(){
       body:JSON.stringify({text_a:a,text_b:b,provider:getProvider()})
     }).then(r=>r.json());
     hideLoading();
+    if(r.limit_reached){handleLimitError(r);return}
     if(r.error){res.innerHTML='<span style="color:var(--red)">❌ '+esc(r.error)+'</span>';res.style.display='block';return}
     let html='<div style="text-align:center;margin-bottom:12px"><strong style="font-size:28px;color:var(--primary)">'+(r.score||0)+'%</strong><br><span style="font-size:12px;color:var(--muted)">Similaridade</span></div>';
     if(r.matches&&r.matches.length){
@@ -852,3 +878,116 @@ async function doShareWork(){
     prompt('Link de partilha:',r.url);
   }catch(e){hideLoading();toast('Erro: '+e.message)}
 }
+
+/* ── Plans & Usage ── */
+const PLAN_COLORS={free:'#666',pro:'var(--primary)',premium:'#FFD60A'};
+async function loadUsage(){
+  try{
+    const r=await fetch('/api/usage').then(r=>r.json());
+    if(r.error)return;
+    const sec=document.getElementById('usageBarSection');
+    if(sec)sec.style.display='block';
+    const lbl=document.getElementById('usagePlanLabel');
+    if(lbl){lbl.textContent=r.plan_label;lbl.style.color=PLAN_COLORS[r.plan]||'var(--primary)'}
+    updateUsageBar('usageWorks','usageWorksBar',r.works);
+    updateUsageBar('usageExports','usageExportsBar',r.exports);
+    updateUsageBar('usageAI','usageAIBar',r.ai_requests);
+    S.usage=r;
+  }catch(e){}
+}
+function updateUsageBar(textId,barId,data){
+  const el=document.getElementById(textId);
+  const bar=document.getElementById(barId);
+  if(!el||!bar)return;
+  const limit=data.limit;
+  if(limit<0){el.textContent=data.used+'/∞';bar.style.width='100%';bar.style.background='var(--primary)';return}
+  el.textContent=data.used+'/'+limit;
+  const pct=limit>0?Math.min((data.used/limit)*100,100):0;
+  bar.style.width=pct+'%';
+  bar.style.background=pct>=90?'#ef4444':pct>=70?'#f59e0b':'var(--primary)';
+}
+async function showUpgradeDialog(){
+  const r=await fetch('/api/plans').then(r=>r.json());
+  if(r.error){toast(r.error);return}
+  const grid=document.getElementById('upgradePlansGrid');
+  const currentPlan=S.usage?.plan||'free';
+  const plans=r.plans;
+  let html='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:8px">';
+  for(const[key,plan]of Object.entries(plans)){
+    const isCurrent=key===currentPlan;
+    const isUpgrade=(currentPlan==='free'&&key==='pro')||(currentPlan==='free'&&key==='premium')||(currentPlan==='pro'&&key==='premium');
+    html+=`<div class="plan-card ${isCurrent?'current':''}" style="border:2px solid ${isCurrent?'var(--primary)':'var(--line)'};border-radius:var(--radius-md);padding:20px;text-align:center;${isCurrent?'background:var(--primary);color:#fff;opacity:.9;':''}${isUpgrade&&!isCurrent?'cursor:pointer;':''}" data-plan="${key}" ${isUpgrade&&!isCurrent?'onclick="doUpgrade(this.dataset.plan)"':''}>`;
+    if(isCurrent)html+=`<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Plano Atual</div>`;
+    html+=`<div style="font-size:18px;font-weight:700;margin-bottom:4px">${plan.label}</div>`;
+    html+=`<div style="font-size:24px;font-weight:800;margin:8px 0">${plan.price===0?'Gratis':'MZN '+plan.price.toLocaleString('pt-BR')}</div>`;
+    html+=`<div style="font-size:12px;opacity:.7;margin-bottom:12px">${plan.price===0?'para sempre':'por mes'}</div>`;
+    html+='<ul style="list-style:none;padding:0;margin:0;text-align:left">';
+    plan.features.forEach(f=>{html+=`<li style="padding:4px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.1)">✓ ${f}</li>`});
+    html+='</ul>';
+    if(isUpgrade&&!isCurrent)html+=`<button class="btn btn-primary" style="width:100%;margin-top:12px;justify-content:center">Escolher ${plan.label}</button>`;
+    else if(!isCurrent&&key!=='free')html+=`<div style="margin-top:12px;font-size:12px;opacity:.5">Apenas para novos clientes</div>`;
+    html+='</div>';
+  }
+  html+='</div>';
+  grid.innerHTML=html;
+  showDialog('upgradeDialog');
+}
+let _pendingUpgrade=null;
+function selectPaymentMethod(el){
+  document.querySelectorAll('.payment-method').forEach(m=>{m.style.borderColor='var(--line)';m.classList.remove('active')});
+  el.style.borderColor='var(--primary)';el.classList.add('active');
+  const method=el.dataset.method;
+  const details=document.getElementById('paymentDetails');
+  const instr=document.getElementById('paymentInstructions');
+  if(method==='mpesa'){
+    instr.innerHTML='Envie o valor para <strong>M-Pesa: +258 84 525 6285</strong> (Cussara Academic).<br>Use o teu numero como referencia.';
+    details.style.display='block';
+  }else if(method==='emola'){
+    instr.innerHTML='Envie o valor para <strong>eMola: +258 84 525 6285</strong> (Cussara Academic).<br>Use o teu numero como referencia.';
+    details.style.display='block';
+  }else{
+    instr.innerHTML='<strong>IBAN:</strong> MZ59 0040 0000 1234 5678 9012 3<br><strong>Titular:</strong> Cussara Academic<br><strong>Banco:</strong> BCI<br>Use o teu nome como referencia.';
+    details.style.display='block';
+  }
+}
+function showPaymentDialog(plan){
+  _pendingUpgrade=plan;
+  const info=document.getElementById('paymentPlanInfo');
+  const plans={pro:{label:'Pro',price:4497},premium:{label:'Premium',price:9497}};
+  const p=plans[plan]||plans.pro;
+  info.innerHTML=`<div style="padding:16px;background:var(--bg-alt);border:1px solid var(--line);border-radius:var(--radius-sm);text-align:center"><div style="font-size:18px;font-weight:700">Plano ${p.label}</div><div style="font-size:28px;font-weight:800;margin:4px 0">MZN ${p.price.toLocaleString('pt-BR')}</div><div style="font-size:12px;opacity:.7">por mes</div></div>`;
+  selectPaymentMethod(document.querySelector('.payment-method[data-method="mpesa"]'));
+  showDialog('paymentDialog');
+}
+async function doUpgrade(plan){showPaymentDialog(plan)}
+async function confirmPayment(){
+  if(!_pendingUpgrade)return;
+  const phone=(document.getElementById('paymentPhone').value||'').trim();
+  if(!phone){toast('Insira o telefone usado no pagamento.');return}
+  showLoading('A processar...');
+  try{
+    const r=await fetch('/api/upgrade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:_pendingUpgrade})}).then(r=>r.json());
+    hideLoading();closeDialog('paymentDialog');closeDialog('upgradeDialog');
+    if(r.error){toast(r.error);return}
+    toast(r.message||'Plano atualizado!');
+    _pendingUpgrade=null;
+    loadUsage();
+  }catch(e){hideLoading();toast('Erro: '+e.message)}
+}
+
+function handleLimitError(data){
+  if(data.limit_reached){
+    toast(data.error);
+    showUpgradeDialog();
+    return true;
+  }
+  toast(data.error||'Erro desconhecido.');
+  return true;
+}
+
+/* ── Init Plans on Login ── */
+const _origShowApp=showApp;
+showApp=function(){
+  _origShowApp.apply(this,arguments);
+  loadUsage();
+};

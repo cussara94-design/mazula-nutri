@@ -116,39 +116,60 @@
   <!-- Pricing -->
   <section class="lp-section lp-pricing-bg" id="pricing">
     <div class="lp-section-inner">
-      <span class="lp-badge">Comece agora</span>
-      <h2>Monografia pronta com citações verificáveis</h2>
-      <p class="lp-sub">Escolha seu plano. Pagamento por M-Pesa.</p>
-      <div class="lp-pricing-grid">
+      <span class="lp-badge">Monetizacao</span>
+      <h2>Planos academicos feitos para voce</h2>
+      <p class="lp-sub">Escolha o plano ideal. Pagamento via M-Pesa, eMola ou transferencia bancaria.</p>
+      <div class="lp-pricing-grid lp-pricing-3">
+        <!-- Free -->
+        <div class="lp-price-card">
+          <div class="lp-price-tag">Gratuito</div>
+          <div class="lp-price-amount">MZN 0</div>
+          <div class="lp-price-period">para sempre</div>
+          <ul>
+            <li>3 trabalhos</li>
+            <li>5 exports/mes (Word + PDF)</li>
+            <li>20 pedidos IA/dia</li>
+            <li>20 referencias</li>
+            <li>3 artigos importados</li>
+            <li>Analise de dados basica</li>
+            <li>Instrumento de coleta</li>
+          </ul>
+          <button class="btn" onclick="showView('register')" style="width:100%;justify-content:center">Comecar Gratis</button>
+        </div>
+        <!-- Pro -->
         <div class="lp-price-card">
           <div class="lp-price-tag">Pro</div>
           <div class="lp-price-amount">MZN 4.497</div>
-          <div class="lp-price-period">válido por 365 dias</div>
+          <div class="lp-price-period">por mes</div>
           <ul>
-            <li><strong>2 trabalhos</strong></li>
-            <li>Escrita de capítulos com citações reais</li>
-            <li>Importar até 40 Artigos Científicos</li>
-            <li>Formatação APA 7ª ou ABNT automática</li>
-            <li>Exportar Word e PDF</li>
-            <li>Análise de Dados</li>
-            <li>Gerador de Instrumentos</li>
-            <li>Suporte WhatsApp + Meeting</li>
+            <li><strong>20 trabalhos</strong></li>
+            <li>200 exports/mes</li>
+            <li>500 pedidos IA/dia</li>
+            <li>500 referencias</li>
+            <li>50 artigos importados</li>
+            <li>Todas as ferramentas IA</li>
+            <li>Export Word e PDF</li>
+            <li>Suporte prioritario</li>
           </ul>
-          <button class="btn btn-primary" onclick="showView('register')" style="width:100%;justify-content:center">Começar agora</button>
+          <button class="btn btn-primary" onclick="showView('register')" style="width:100%;justify-content:center">Escolher Pro</button>
         </div>
+        <!-- Premium -->
         <div class="lp-price-card lp-price-featured">
           <div class="lp-price-badge">Mais Popular</div>
           <div class="lp-price-tag">Premium</div>
           <div class="lp-price-amount">MZN 9.497</div>
-          <div class="lp-price-period">válido por 365 dias</div>
+          <div class="lp-price-period">por mes</div>
           <ul>
-            <li><strong>Tudo do plano Pro +</strong></li>
-            <li>Revisão Humana — os nossos olhos antes do supervisor</li>
-            <li>Slides Profissionais — júri impressionado</li>
-            <li>Simulação de Defesa — sem surpresas</li>
-            <li>Garantia de Revisão — reprovado? Reescrevemos 1×</li>
+            <li><strong>Tudo do Pro +</strong></li>
+            <li>Trabalhos ilimitados</li>
+            <li>Exports ilimitados</li>
+            <li>IA ilimitada</li>
+            <li>Referencias ilimitadas</li>
+            <li>Artigos ilimitados</li>
+            <li>API personalizada</li>
+            <li>Suporte 24/7</li>
           </ul>
-          <button class="btn btn-primary" onclick="showView('register')" style="width:100%;justify-content:center">Quero a Aprovação Garantida</button>
+          <button class="btn btn-primary" onclick="showView('register')" style="width:100%;justify-content:center">Escolher Premium</button>
         </div>
       </div>
     </div>
@@ -265,6 +286,24 @@
         <button data-view="ai"><span class="nav-icon">🤖</span><span class="nav-label">IA Assistente</span></button>
         <button data-view="tools"><span class="nav-icon">🔧</span><span class="nav-label">Ferramentas</span></button>
       </nav>
+      <div class="usage-bar-section" id="usageBarSection" style="display:none;margin:8px 0;padding:12px;background:rgba(255,255,255,.06);border-radius:var(--radius-sm)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px" id="usagePlanLabel">Gratuito</span>
+          <button class="btn btn-sm btn-primary" onclick="showUpgradeDialog()" style="font-size:10px;padding:2px 8px;margin:0">Upgrade</button>
+        </div>
+        <div class="usage-item" style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>Trabalhos</span><span id="usageWorks">0/3</span></div>
+          <div class="usage-progress" style="height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden"><div id="usageWorksBar" style="height:100%;background:var(--primary);border-radius:2px;transition:width .3s"></div></div>
+        </div>
+        <div class="usage-item" style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>Exports mes</span><span id="usageExports">0/5</span></div>
+          <div class="usage-progress" style="height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden"><div id="usageExportsBar" style="height:100%;background:var(--primary);border-radius:2px;transition:width .3s"></div></div>
+        </div>
+        <div class="usage-item">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>IA hoje</span><span id="usageAI">0/20</span></div>
+          <div class="usage-progress" style="height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden"><div id="usageAIBar" style="height:100%;background:var(--primary);border-radius:2px;transition:width .3s"></div></div>
+        </div>
+      </div>
       <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
         <button class="dark-toggle" id="darkToggle" onclick="toggleDark()" title="Alternar modo escuro">
           <span id="darkIcon">🌙</span> <span id="darkLabel">Modo Escuro</span>
@@ -616,6 +655,62 @@
     <div class="field full"><label>Texto B</label><textarea id="similarityTextB" rows="4" placeholder="Cole o segundo texto aqui..."></textarea></div>
     <div id="similarityResult" style="display:none;margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px"></div>
     <div class="modal-foot" style="border-top:0"><button type="button" class="btn" onclick="closeDialog('similarityDialog')">Fechar</button><button type="button" class="btn btn-primary" onclick="doSimilarityCheck()">🔍 Comparar</button></div>
+  </div>
+</dialog>
+
+<dialog id="upgradeDialog">
+  <div class="modal-head">
+    <div><h2>⬆ Fazer Upgrade</h2><p>Desbloqueie todo o potencial do Cussara Academic.</p></div>
+    <button class="close" onclick="closeDialog('upgradeDialog')">&times;</button>
+  </div>
+  <div class="form" id="upgradePlansGrid"></div>
+  <div class="modal-foot"><button type="button" class="btn" onclick="closeDialog('upgradeDialog')">Fechar</button></div>
+</dialog>
+
+<dialog id="paymentDialog">
+  <div class="modal-head">
+    <div><h2>💳 Pagamento</h2><p>Complete o pagamento para ativar seu plano.</p></div>
+    <button class="close" onclick="closeDialog('paymentDialog')">&times;</button>
+  </div>
+  <div class="form">
+    <div class="field full" id="paymentPlanInfo"></div>
+    <div class="field full">
+      <label>Metodo de Pagamento</label>
+      <div class="payment-methods" style="display:flex;gap:12px;margin-top:8px">
+        <div class="payment-method active" data-method="mpesa" onclick="selectPaymentMethod(this)" style="flex:1;padding:16px;border:2px solid var(--primary);border-radius:var(--radius-sm);text-align:center;cursor:pointer;background:var(--bg-alt)">
+          <div style="font-size:28px">📱</div>
+          <div style="font-weight:600;margin-top:4px">M-Pesa</div>
+          <div style="font-size:12px;opacity:.7">+258 84/85 xxx xxxx</div>
+        </div>
+        <div class="payment-method" data-method="emola" onclick="selectPaymentMethod(this)" style="flex:1;padding:16px;border:2px solid var(--line);border-radius:var(--radius-sm);text-align:center;cursor:pointer;background:var(--bg-alt)">
+          <div style="font-size:28px">💰</div>
+          <div style="font-weight:600;margin-top:4px">eMola</div>
+          <div style="font-size:12px;opacity:.7">+258 84/85 xxx xxxx</div>
+        </div>
+        <div class="payment-method" data-method="transferencia" onclick="selectPaymentMethod(this)" style="flex:1;padding:16px;border:2px solid var(--line);border-radius:var(--radius-sm);text-align:center;cursor:pointer;background:var(--bg-alt)">
+          <div style="font-size:28px">🏦</div>
+          <div style="font-weight:600;margin-top:4px">Transferencia</div>
+          <div style="font-size:12px;opacity:.7">IBAN / Conta</div>
+        </div>
+      </div>
+    </div>
+    <div class="field full" id="paymentDetails" style="display:none">
+      <div style="padding:16px;background:var(--bg-alt);border:1px solid var(--line);border-radius:var(--radius-sm)">
+        <p style="margin:0 0 8px;font-weight:600">Instrucoes de Pagamento</p>
+        <p style="margin:0;font-size:13px;line-height:1.6" id="paymentInstructions"></p>
+      </div>
+    </div>
+    <div class="field full">
+      <label>Telefone usado no pagamento</label>
+      <input type="tel" id="paymentPhone" placeholder="+258 84 xxx xxxx">
+    </div>
+    <div class="field full" style="background:var(--bg-alt);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--line)">
+      <p style="margin:0;font-size:12px;opacity:.7">Apos o pagamento, envie o comprovativo para <strong>cussara94@gmail.com</strong> ou WhatsApp <strong>+258 84 525 6285</strong>. O seu plano sera ativado em ate 2 horas uteis.</p>
+    </div>
+    <div class="modal-foot" style="border-top:0">
+      <button type="button" class="btn" onclick="closeDialog('paymentDialog')">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="confirmPayment()">✉ Enviar Comprovativo</button>
+    </div>
   </div>
 </dialog>
 
